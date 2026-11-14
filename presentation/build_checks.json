@@ -1,6 +1,6 @@
 {
-  "pptx_slides": 22,
-  "speaker_notes_slides": 22,
+  "pptx_slides": 23,
+  "speaker_notes_slides": 23,
   "solver_runs_during_build": 0,
   "exact_front_postprocessing_disclosed": true,
   "versions": {
@@ -8,9 +8,14 @@
     "matplotlib": "3.10.8",
     "Pillow": "12.3.0"
   },
-  "pdf_pages": 22,
+  "pptx_shape_bounds": "PASS",
+  "main_slides": 18,
+  "backup_slides": 5,
+  "pdf_pages": 23,
   "required_pdf_text": "PASS",
-  "rendered_preview_slides": 22,
+  "visible_group_roster_and_contributions": "PASS",
+  "pdf_text_page_bounds": "PASS",
+  "rendered_preview_slides": 23,
   "demo_script_syntax": "PASS",
   "demo_execution": {
     "status": "PASS",

@@ -10,10 +10,13 @@
   192-run study. Its unfavorable hypervolume result is retained as evidence
   motivating the enhancement.
 
-Fill actual registered member/course details and authentic contribution records
-after the group meeting. The report does not claim approval or weekly history.
+Group 14's supplied member/roll/GitHub details, Group Leader Akshat Tikaria and
+Professor Akhil Kulal appear in the report. Contributions in Section 18 summarize
+actual commits and merged PRs; review the wording against
+[the linked evidence](../docs/contributions.md). Approval, access permissions and
+a complete weekly participation history remain separate facts to confirm.
 
-`final_report.pdf` was rebuilt from the reviewed source on 2026-11-14 (23 pages), including the supplementary methods, their evidence/provenance limits and the added references. Text extraction and page-bound checks passed; the references and supplementary discussion were also inspected as rendered pages.
+`final_report.pdf` was rebuilt from the reviewed source on 2026-11-14 (23 pages), including the supplied Group 14 roster, professor details and Git/PR-backed contributions. The scientific results and provenance limits are unchanged. Text extraction and page-bound checks passed; the roster and contribution pages were also inspected as rendered pages.
 
 To rebuild the PDF from reviewed Markdown:
 

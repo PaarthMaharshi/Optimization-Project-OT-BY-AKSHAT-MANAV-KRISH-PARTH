@@ -6,16 +6,27 @@ size: 16:9
 
 # Multi-Objective College Timetable Optimization
 
-<!-- OPTIMIZATION TECHNIQUES · GROUP PROJECT -->
+<!-- OPTIMIZATION TECHNIQUES · GROUP 14 -->
 
 Feasible schedules. Explicit trade-offs. Reproducible evidence.
+
+| Member | Roll | GitHub | Role |
+| --- | --- | --- | --- |
+| Akshat Tikaria | 241070005 | @akshattikaria | Group Leader |
+| Sharma Krish Amit | 241070036 | @krisharmaa | Group member |
+| Rajesh Manavaditya | 241070040 | @Manavaditya-rajesh | Group member |
+| Paarth Maharshi | 241070050 | @PaarthMaharshi | Group member |
+
+Professor Akhil Kulal · @akhilkulal4050
+
+Repository: https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH
 
 **168** held-out runs | **3.9–9.0%** primary mean HV gains | **0** invalid exported schedules
 
 
-<!-- Speaker notes: The coordinator assigns every required session to a time block, suitable room and eligible teacher. Feasibility comes first. Headline gains refer only to the declared medium/large synthetic validation cases and both resource protocols. Small regressions and the competitive local-search ablation are retained. This technical presentation does not establish personal authorship, professor approval or eight weeks of individual participation. -->
+<!-- Speaker notes: Group 14: Akshat Tikaria (241070005, @akshattikaria, Group Leader); Sharma Krish Amit (241070036, @krisharmaa, Group member); Rajesh Manavaditya (241070040, @Manavaditya-rajesh, Group member); Paarth Maharshi (241070050, @PaarthMaharshi, Group member). Professor Akhil Kulal (@akhilkulal4050). Repository: https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH. The cover identities and Group Leader role were supplied by the group; recorded contributions are documented separately in Appendix E and docs/contributions.md. The coordinator assigns every required session to a time block, suitable room and eligible teacher. Feasibility comes first. Headline gains refer only to the declared medium/large synthetic validation cases and both resource protocols. Small regressions and the competitive local-search ablation are retained. -->
 
-<!-- Evidence: report/enhancement_report.md; verification.json -->
+<!-- Evidence: Group-supplied roster; docs/contributions.md; report/enhancement_report.md; verification.json -->
 
 ---
 
@@ -438,4 +449,30 @@ python main.py evaluate work/presentation_demo/instance.json work/presentation_d
 <!-- Speaker notes: Full references and exact roles are in literature/README.md, including Zhang and Li (2007) for MOEA/D, Bandyopadhyay et al. (2008) for AMOSA inspiration, Hwang and Yoon (1981) for TOPSIS, Saaty (1980) for AHP and Miettinen (1999) for scalarization. Every member should explain why teacher choice changes workload, why labs reserve all periods, constraint domination among infeasible candidates, why equal evaluation counts are not equal computation, what makes the final algorithm an NSGA-II variant, the scopes of exact guarantees, and why workload balance can hurt students. The mandatory front-cleanup command is python experiments/exact_fronts.py --study enhancement_validation. It leaves frozen search/timing records unchanged and writes exact rational reporting fronts separately. The presentation builder reads saved artifacts only and runs no optimizer. The source hash of measured validation is 7ad242177abf49f65dfd192b3ecad6fe614644abf76413b39099aa897ddd854c. -->
 
 <!-- Evidence: literature/README.md; docs/reference_review.md; manifest.json -->
+
+---
+
+# Backup: Group 14 recorded contributions
+
+<!-- APPENDIX E / REPOSITORY EVIDENCE -->
+
+| Member | Recorded contribution | Git / PR evidence |
+| --- | --- | --- |
+| Akshat Tikaria | Published/integrated core and memetic releases, exact reporting and the final audit. | [9947d9d](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9947d9d), [6e94681](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/6e94681), [14888c6](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/14888c6), [343b260](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/343b260) |
+| Sharma Krish Amit | Clockwork web/API/calendar integration and the disruption algorithm/application. | [PR #1](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/1), [PR #2](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/2), [PR #3](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/3), [9987c06](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9987c06), [d7acb20](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/d7acb20), [4f32a71](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/4f32a71) |
+| Rajesh Manavaditya | Supplementary MOEA/D, AMOSA-inspired annealing, MCDM, CP-SAT epsilon runs and five-method comparison. | [PR #4](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/4), [cf0110d](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/cf0110d) |
+| Paarth Maharshi | Exact gaps-room references, AHP/sensitivity and studies; measured-only web/report corrections. | [PR #5](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/5), [7833e17](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/7833e17), [c088bcb](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/c088bcb), [51664e9](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/51664e9), [252c12a](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/252c12a), [2939788](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/2939788), [f594524](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/f594524) |
+
+
+**Recorded submissions and integration establish repository changes, not exclusive personal authorship.**
+
+<!-- Speaker notes: The roster and Group Leader designation were supplied by the group. The following contribution descriptions are limited to independently reviewed Git diffs and merged GitHub PR records. Recorded submissions/publication, not exclusive personal authorship, hours or eight-week participation. No professor approval or approval date is inferred. Akshat Tikaria: Published/integrated core and memetic releases, exact reporting and the final audit. Paths: src/timetable/, experiments/, tests/, report/, presentation/. Evidence: 9947d9d https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9947d9d; 6e94681 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/6e94681; 14888c6 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/14888c6; 343b260 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/343b260.
+
+Sharma Krish Amit: Clockwork web/API/calendar integration and the disruption algorithm/application. Paths: api/, frontend/, src/timetable/disruption.py. Evidence: PR #1 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/1; PR #2 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/2; PR #3 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/3; 9987c06 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9987c06; d7acb20 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/d7acb20; 4f32a71 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/4f32a71.
+
+Rajesh Manavaditya: Supplementary MOEA/D, AMOSA-inspired annealing, MCDM, CP-SAT epsilon runs and five-method comparison. Paths: src/timetable/moead.py, src/timetable/amosa.py, src/timetable/mcdm.py, src/timetable/exact.py, experiments/compare_all_methods.py. Evidence: PR #4 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/4; cf0110d https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/cf0110d.
+
+Paarth Maharshi: Exact gaps-room references, AHP/sensitivity and studies; measured-only web/report corrections. Paths: src/timetable/exact.py, src/timetable/mcdm.py, experiments/, results/moead_paired/, results/exact_gap/, frontend/, report/. Evidence: PR #5 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/5; 7833e17 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/7833e17; c088bcb https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/c088bcb; 51664e9 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/51664e9; 252c12a https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/252c12a; 2939788 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/2939788; f594524 https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/f594524. Detailed evidence and attribution boundaries: docs/contributions.md. -->
+
+<!-- Evidence: docs/contributions.md; linked commits and merged PRs #1–#5 (speaker notes) -->
 

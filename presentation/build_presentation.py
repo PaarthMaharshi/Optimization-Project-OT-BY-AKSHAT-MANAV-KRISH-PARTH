@@ -3,6 +3,7 @@ from pathlib import Path
 from collections import Counter
 from importlib.metadata import version
 import json, hashlib, subprocess, tempfile, shutil
+import xml.etree.ElementTree as ET
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -21,6 +22,30 @@ ASSETS.mkdir(exist_ok=True)
 NAVY='#142C43'; TEAL='#087F7B'; AMBER='#B9672D'; INK='#23384A'; MUTED='#586B79'; PAPER='#F4F7F8'; PALE='#E4F1F0'; WHITE='#FFFFFF'
 FONT='DejaVu Sans'
 STEM='college_timetable_optimization'
+REPOSITORY='https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH'
+GROUP=14
+TEAM=[
+ {'name':'Akshat Tikaria','roll':'241070005','handle':'@akshattikaria','role':'Group Leader',
+  'contribution':'Published/integrated core and memetic releases, exact reporting and the final audit.',
+  'commits':['9947d9d','6e94681','14888c6','343b260'],'prs':[],
+  'paths':['src/timetable/','experiments/','tests/','report/','presentation/']},
+ {'name':'Sharma Krish Amit','roll':'241070036','handle':'@krisharmaa','role':'Group member',
+  'contribution':'Clockwork web/API/calendar integration and the disruption algorithm/application.',
+  'commits':['9987c06','d7acb20','4f32a71'],'prs':[1,2,3],
+  'paths':['api/','frontend/','src/timetable/disruption.py']},
+ {'name':'Rajesh Manavaditya','roll':'241070040','handle':'@Manavaditya-rajesh','role':'Group member',
+  'contribution':'Supplementary MOEA/D, AMOSA-inspired annealing, MCDM, CP-SAT epsilon runs and five-method comparison.',
+  'commits':['cf0110d'],'prs':[4],
+  'paths':['src/timetable/moead.py','src/timetable/amosa.py','src/timetable/mcdm.py','src/timetable/exact.py','experiments/compare_all_methods.py']},
+ {'name':'Paarth Maharshi','roll':'241070050','handle':'@PaarthMaharshi','role':'Group member',
+  'contribution':'Exact gaps-room references, AHP/sensitivity and studies; measured-only web/report corrections.',
+  'commits':['7833e17','c088bcb','51664e9','252c12a','2939788','f594524'],'prs':[5],
+  'paths':['src/timetable/exact.py','src/timetable/mcdm.py','experiments/','results/moead_paired/','results/exact_gap/','frontend/','report/']},
+]
+PROFESSOR={'name':'Professor Akhil Kulal','handle':'@akhilkulal4050'}
+CONTRIBUTION_SCOPE='Recorded submissions/publication, not exclusive personal authorship, hours or eight-week participation.'
+for member in TEAM:
+ member['evidence']=[{'label':f'PR #{n}','url':f'{REPOSITORY}/pull/{n}'} for n in member['prs']]+[{'label':sha,'url':f'{REPOSITORY}/commit/{sha}'} for sha in member['commits']]
 def load(p): return json.loads((ROOT/p).read_text())
 summary=load('results/enhancement_validation/summary.json')
 verified=load('results/enhancement_validation/verification.json')
@@ -36,7 +61,8 @@ for s in ['medium','large']:
   gains.append((s,p,100*(hv(s,p,'memetic')/hv(s,p,'greedy')-1)))
   ablation.append((s,p,100*(hv(s,p,'memetic')/hv(s,p,'ablation_local')-1)))
 source_files=['results/enhancement_validation/summary.json','results/enhancement_validation/verification.json','results/enhancement_validation/manifest.json','results/enhancement_validation/representatives.json','results/enhancement_validation/small_ideal_certificates.json','results/exact_micro/room/exact_front.json',precision_path,'results/moead_paired/summary.json','results/moead_paired/runs.json','results/exact_gap/summary.json','results/exact_gap/runs.json']
-(HERE/'evidence.json').write_text(json.dumps({'source_sha256':manifest['source_sha256'],'numerical_precision':precision,'primary_gains_percent':gains,'ablation_differences_percent':ablation,'verification':{k:v for k,v in verified.items() if not isinstance(v,dict)},'supplementary_scope':'Historical exploratory scalar summaries; full archives and source manifests were not retained. MOEA/D and AMOSA records predate scalarization/cooling fixes.','evidence_sha256':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in source_files}},indent=2)+'\n')
+source_files+=['docs/contributions.md']
+(HERE/'evidence.json').write_text(json.dumps({'source_sha256':manifest['source_sha256'],'numerical_precision':precision,'primary_gains_percent':gains,'ablation_differences_percent':ablation,'verification':{k:v for k,v in verified.items() if not isinstance(v,dict)},'supplementary_scope':'Historical exploratory scalar summaries; full archives and source manifests were not retained. MOEA/D and AMOSA records predate scalarization/cooling fixes.','group':{'number':GROUP,'members':TEAM,'professor':PROFESSOR,'repository':REPOSITORY,'identity_source':'Group-supplied names, rolls, handles and leader/instructor roles.','contribution_scope':CONTRIBUTION_SCOPE,'contribution_source':'Git commit diffs and GitHub merged PR records, detailed in docs/contributions.md.'},'presentation_source_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'evidence_sha256':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in source_files}},indent=2)+'\n')
 plt.rcParams.update({'font.family':FONT,'font.size':14,'axes.spines.top':False,'axes.spines.right':False})
 labels=[s.title()+' · '+('equal evaluations' if p=='evaluations' else 'equal wall time') for s,p,_ in gains]
 for filename,values,mode in [('primary_gains',[v for _,_,v in gains],'gains'),('selection_ablation',[v for _,_,v in ablation],'ablation')]:
@@ -76,10 +102,10 @@ for name,formula in formulas.items():
 slides=[]
 def S(title,kicker,kind='bullets',notes='',source='',**kwargs):
  slides.append(dict(title=title,kicker=kicker,kind=kind,notes=notes,source=source,**kwargs))
-S('Multi-Objective\nCollege Timetable\nOptimization','OPTIMIZATION TECHNIQUES · GROUP PROJECT','title',
+S('Multi-Objective\nCollege Timetable\nOptimization','OPTIMIZATION TECHNIQUES · GROUP 14','title',
  subtitle='Feasible schedules. Explicit trade-offs. Reproducible evidence.',
  stats=[('168','held-out runs'),('3.9–9.0%','primary mean HV gains'),('0','invalid exported schedules')],
- notes='The coordinator assigns every required session to a time block, suitable room and eligible teacher. Feasibility comes first. Headline gains refer only to the declared medium/large synthetic validation cases and both resource protocols. Small regressions and the competitive local-search ablation are retained. This technical presentation does not establish personal authorship, professor approval or eight weeks of individual participation.',source='report/enhancement_report.md; verification.json')
+ notes='Group 14: '+ '; '.join(f"{m['name']} ({m['roll']}, {m['handle']}, {m['role']})" for m in TEAM)+'. '+PROFESSOR['name']+' ('+PROFESSOR['handle']+'). Repository: '+REPOSITORY+'. The cover identities and Group Leader role were supplied by the group; recorded contributions are documented separately in Appendix E and docs/contributions.md. The coordinator assigns every required session to a time block, suitable room and eligible teacher. Feasibility comes first. Headline gains refer only to the declared medium/large synthetic validation cases and both resource protocols. Small regressions and the competitive local-search ablation are retained.',source='Group-supplied roster; docs/contributions.md; report/enhancement_report.md; verification.json')
 S('A scheduling decision with three interests','01 / PROBLEM AND DECISIONS','cards',
  cards=[('Students','Attend every required session.\nAvoid internal idle gaps.'),('Faculty','No double bookings.\nCompact and balanced teaching.'),('College','Use compatible rooms.\nMatch class sizes to seats.')],
  bullets=['Fixed inputs: demand, duration, cohorts, rooms, eligibility, availability and limits.','Decisions: one start + room per event; one eligible teacher per offering.'],
@@ -165,6 +191,12 @@ S('Backup: references and viva checkpoints','APPENDIX D / SOURCES',
  bullets=['Deb et al. (2002), NSGA-II. IEEE TEC. DOI: 10.1109/4235.996017.','Brélaz (1979), New Methods to Color the Vertices of a Graph. DOI: 10.1145/359094.359101.','Schaerf (1999), A Survey of Automated Timetabling. Artificial Intelligence Review.','Zitzler et al. (2003), Performance Assessment of Multiobjective Optimizers. IEEE TEC.','Google OR-Tools CP-SAT documentation; professor assignment and supplied proposal.'],
  banner='Rebuild: python presentation/build_presentation.py · Evidence values/hashes: presentation/evidence.json',
  notes='Full references and exact roles are in literature/README.md, including Zhang and Li (2007) for MOEA/D, Bandyopadhyay et al. (2008) for AMOSA inspiration, Hwang and Yoon (1981) for TOPSIS, Saaty (1980) for AHP and Miettinen (1999) for scalarization. Every member should explain why teacher choice changes workload, why labs reserve all periods, constraint domination among infeasible candidates, why equal evaluation counts are not equal computation, what makes the final algorithm an NSGA-II variant, the scopes of exact guarantees, and why workload balance can hurt students. The mandatory front-cleanup command is python experiments/exact_fronts.py --study enhancement_validation. It leaves frozen search/timing records unchanged and writes exact rational reporting fronts separately. The presentation builder reads saved artifacts only and runs no optimizer. The source hash of measured validation is '+manifest['source_sha256']+'.',source='literature/README.md; docs/reference_review.md; manifest.json')
+S('Backup: Group 14 recorded contributions','APPENDIX E / REPOSITORY EVIDENCE','contributions',
+ headers=['Member','Recorded contribution','Git / PR evidence'],
+ rows=[[m['name'],m['contribution'],', '.join(f"[{e['label']}]({e['url']})" for e in m['evidence'])] for m in TEAM],
+ banner='Recorded submissions and integration establish repository changes, not exclusive personal authorship.',
+ notes='The roster and Group Leader designation were supplied by the group. The following contribution descriptions are limited to independently reviewed Git diffs and merged GitHub PR records. '+CONTRIBUTION_SCOPE+' No professor approval or approval date is inferred. '+ '\n\n'.join(m['name']+': '+m['contribution']+' Paths: '+', '.join(m['paths'])+'. Evidence: '+'; '.join(e['label']+' '+e['url'] for e in m['evidence'])+'.' for m in TEAM)+' Detailed evidence and attribution boundaries: docs/contributions.md.',
+ source='docs/contributions.md; linked commits and merged PRs #1–#5 (speaker notes)')
 
 # Common editable PowerPoint layout helpers.
 def rgb(c): return RGBColor.from_string(c[1:])
@@ -193,8 +225,8 @@ def metrics(sl,stats,y=1.7,height=1.25,size=30):
  for i,(number,label) in enumerate(stats):
   x=.65+i*(width+.2); rect(sl,x,y,width,height,PALE); text(sl,number,x+.14,y+.13,width-.28,.5,size,TEAL,True); text(sl,label,x+.14,y+.74,width-.28,.39,12,NAVY)
 
-prs=Presentation(); prs.slide_width=Inches(13.333333); prs.slide_height=Inches(7.5); prs.core_properties.author=''; prs.core_properties.title='Multi-Objective College Timetable Optimization'
-md=['---','marp: true','paginate: true','size: 16:9','---','']; notes=['# Complete presenter notes','','Main talk: slides 1–18. Backups: slides 19–22. Suggested duration: 15–18 minutes plus demo.','']
+prs=Presentation(); prs.slide_width=Inches(13.333333); prs.slide_height=Inches(7.5); prs.core_properties.author='; '.join(m['name'] for m in TEAM); prs.core_properties.title='Multi-Objective College Timetable Optimization'; prs.core_properties.subject='Group 14 · '+PROFESSOR['name']
+md=['---','marp: true','paginate: true','size: 16:9','---','']; notes=['# Complete presenter notes','',f'Main talk: slides 1–18. Backups: slides 19–{len(slides)}. Suggested duration: 15–18 minutes plus demo.','']
 for index,s in enumerate(slides,1):
  sl=prs.slides.add_slide(prs.slide_layouts[6]); sl.background.fill.solid(); sl.background.fill.fore_color.rgb=rgb(PAPER); rect(sl,0,0,.15,7.5,TEAL)
  text(sl,s['kicker'],.62,.30,12,.28,10,TEAL,True)
@@ -202,8 +234,16 @@ for index,s in enumerate(slides,1):
  text(sl,'OPTIMIZATION TECHNIQUES · SYNTHETIC STUDY',.62,7.18,10,.16,7.5,MUTED); text(sl,f'{index:02d} / {len(slides):02d}',11.8,7.12,.91,.24,9,MUTED,align=PP_ALIGN.RIGHT)
  kind=s['kind']
  if kind=='title':
-  rect(sl,.15,0,13.19,7.5,NAVY); rect(sl,.65,.58,1.05,.06,'#8ED2CD'); text(sl,s['kicker'],.65,.95,12,.3,12,'#8ED2CD',True); text(sl,s['title'],.65,1.55,12,2.5,39,WHITE,True); text(sl,s['subtitle'],.68,4.4,12,.6,21,'#D3E3E9')
-  for i,(number,label) in enumerate(s['stats']): text(sl,number,.68+i*4.12,5.65,3.8,.64,33,WHITE,True); text(sl,label,.68+i*4.12,6.42,3.8,.3,13,'#C1D5DF')
+  rect(sl,.15,0,13.183333,7.5,NAVY); rect(sl,.65,.58,1.05,.06,'#8ED2CD'); text(sl,s['kicker'],.65,.84,12,.3,12,'#8ED2CD',True); text(sl,s['title'],.65,1.55,6.12,2.5,38,WHITE,True); text(sl,s['subtitle'],.68,4.25,6.0,.65,17,'#D3E3E9')
+  text(sl,'Project team',7.08,1.48,5.55,.42,22,WHITE,True)
+  for x,value,w in [(7.08,'MEMBER',2.35),(9.45,'ROLL',1.15),(10.70,'GITHUB',2.0)]: text(sl,value,x,2.09,w,.25,10,'#8ED2CD',True)
+  for i,m in enumerate(TEAM):
+   y=2.55+i*.57
+   text(sl,m['name'],7.08,y,2.35,.28,12.3,WHITE,True); text(sl,m['roll'],9.45,y,1.16,.28,11.3,'#D3E3E9'); text(sl,m['handle'],10.70,y,2.0,.28,10.3,'#D3E3E9')
+   if m['role']=='Group Leader': text(sl,m['role'],7.08,y+.27,2.35,.21,9.5,'#8ED2CD')
+  text(sl,PROFESSOR['name']+'  ·  '+PROFESSOR['handle'],.68,5.08,12,.32,15,'#D3E3E9',True)
+  link=text(sl,REPOSITORY,.68,5.56,12,.26,10.4,'#8ED2CD'); link.click_action.hyperlink.address=REPOSITORY
+  for i,(number,label) in enumerate(s['stats']): text(sl,number,.68+i*4.12,6.12,3.8,.54,29,WHITE,True); text(sl,label,.68+i*4.12,6.76,3.8,.3,12,'#C1D5DF')
  elif kind=='cards':
   for i,(heading,body) in enumerate(s['cards']):
    x=.65+i*4.12; rect(sl,x,1.77,3.88,2.45,WHITE); rect(sl,x,1.77,3.88,.07,TEAL); text(sl,heading,x+.2,2.10,3.48,.48,23,TEAL,True); text(sl,body,x+.2,2.85,3.48,1.1,18)
@@ -237,13 +277,28 @@ for index,s in enumerate(slides,1):
  elif kind=='formulation':
   for f,y in [('binary',1.75),('assignment',2.63),('coupling',3.53)]: rect(sl,.75,y-.03,11.8,.8,WHITE); picture(sl,f'presentation/assets/formula_{f}.png',.95,y,11.3,.72)
   bullets(sl,s['bullets'],y=4.72,h=1.2,size=17)
- else: bullets(sl,s.get('bullets',[]),size=21 if index<len(slides) else 18.5)
+ elif kind=='contributions':
+  for x,value,w in [(.83,'MEMBER',2.35),(3.38,'RECORDED CONTRIBUTION',6.12),(9.83,'GIT / PR EVIDENCE',2.55)]: text(sl,value,x,1.77,w,.25,11,TEAL,True)
+  for i,m in enumerate(TEAM):
+   y=2.18+i*.96; rect(sl,.65,y,12.05,.87,WHITE)
+   text(sl,m['name'],.83,y+.14,2.35,.40,14.5,NAVY,True); text(sl,m['handle'],.83,y+.58,2.35,.23,10.4,MUTED)
+   text(sl,m['contribution'],3.38,y+.12,6.12,.70,15.2,INK)
+   shown=m['evidence'] if not m['prs'] else [e for e in m['evidence'] if e['label'].startswith('PR')]
+   box=text(sl,'',9.83,y+.15,2.55,.64,11.2,TEAL)
+   for j,e in enumerate(shown):
+    p=box.text_frame.paragraphs[0] if j<2 else box.text_frame.add_paragraph() if j%2==0 else box.text_frame.paragraphs[-1]
+    p.space_after=Pt(3)
+    if j%2: p.add_run().text=' · '
+    r=p.add_run(); r.text=e['label']; r.font.name=FONT; r.font.size=Pt(11.2); r.font.color.rgb=rgb(TEAL); r.hyperlink.address=e['url']
+ else: bullets(sl,s.get('bullets',[]),size=18.5 if s['kicker']=='APPENDIX D / SOURCES' else 21)
  if 'banner' in s: banner(sl,s['banner'])
  if kind!='title': text(sl,'Evidence: '+s['source'],.65,6.99,12,.16,7.2,MUTED)
  sl.notes_slide.notes_text_frame.text=s['notes']+'\n\nEvidence: '+s['source']
  if index>1: md+=['---','']
  md+=['# '+s['title'].replace('\n',' '),'','<!-- '+s['kicker']+' -->','']
  if 'subtitle' in s: md+=[s['subtitle'],'']
+ if kind=='title':
+  md+=['| Member | Roll | GitHub | Role |','| --- | --- | --- | --- |']+[f"| {m['name']} | {m['roll']} | {m['handle']} | {m['role']} |" for m in TEAM]+['',PROFESSOR['name']+' · '+PROFESSOR['handle'],'','Repository: '+REPOSITORY,'']
  if 'stats' in s: md+=[' | '.join(f'**{a}** {b}' for a,b in s['stats']),'']
  for heading,body in s.get('cards',[]): md+=['## '+heading,body,'']
  for t,vals in [(s.get('left_title'),s.get('left')),(s.get('right_title'),s.get('right'))]:
@@ -263,6 +318,10 @@ pptx=HERE/(STEM+'.pptx'); prs.save(pptx)
 parsed=Presentation(pptx); assert len(parsed.slides)==len(slides); assert all(sl.notes_slide.notes_text_frame.text.strip() for sl in parsed.slides)
 prior_checks=json.loads((HERE/'build_checks.json').read_text()) if (HERE/'build_checks.json').exists() else {}
 checks={'pptx_slides':len(slides),'speaker_notes_slides':len(slides),'solver_runs_during_build':0,'exact_front_postprocessing_disclosed':True,'versions':{p:version(p) for p in ['python-pptx','matplotlib','Pillow']}}
+for index,slide in enumerate(parsed.slides,1):
+ for shape in slide.shapes:
+  assert shape.left>=0 and shape.top>=0 and shape.left+shape.width<=parsed.slide_width and shape.top+shape.height<=parsed.slide_height,(index,shape.name)
+checks['pptx_shape_bounds']='PASS'; checks['main_slides']=18; checks['backup_slides']=len(slides)-18
 with tempfile.TemporaryDirectory(prefix='timetable-slides-') as tmp:
  command=[shutil.which('soffice'),'-env:UserInstallation=file://'+tmp+'/profile','--headless','--convert-to','pdf','--outdir',str(HERE),str(pptx)]
  subprocess.run(command,check=True,capture_output=True,text=True,timeout=180)
@@ -272,6 +331,16 @@ with tempfile.TemporaryDirectory(prefix='timetable-slides-') as tmp:
  content=subprocess.run(['pdftotext',str(pdf),'-'],check=True,capture_output=True,text=True).stdout
  for phrase in ['College Timetable','Mutation-only','3,295','3,242','exact_fronts.py','Small regression','APPENDIX C']: assert phrase in content,phrase
  checks['required_pdf_text']='PASS'
+ cover=content.split('\f')[0]
+ for phrase in ['GROUP 14','Group Leader',PROFESSOR['name'],PROFESSOR['handle'],REPOSITORY]+[m[k] for m in TEAM for k in ['name','roll','handle']]: assert phrase in cover,phrase
+ assert 'APPENDIX E' in content and 'Recorded submissions and integration' in content
+ checks['visible_group_roster_and_contributions']='PASS'
+ bbox=subprocess.run(['pdftotext','-bbox',str(pdf),'-'],check=True,capture_output=True,text=True).stdout
+ bounds_pages=list(ET.fromstring(bbox).iter('{http://www.w3.org/1999/xhtml}page')); assert len(bounds_pages)==len(slides)
+ for page in bounds_pages:
+  for word in page.iter('{http://www.w3.org/1999/xhtml}word'):
+   assert 0<=float(word.attrib['xMin'])<=float(word.attrib['xMax'])<=float(page.attrib['width']) and 0<=float(word.attrib['yMin'])<=float(word.attrib['yMax'])<=float(page.attrib['height']),word.text
+ checks['pdf_text_page_bounds']='PASS'
  subprocess.run(['pdftoppm','-scale-to','480','-png',str(pdf),tmp+'/slide'],check=True,capture_output=True,timeout=120)
  thumbs=sorted(Path(tmp).glob('slide-*.png')); width,height=480,270; cols=4
  sheet=Image.new('RGB',(cols*492+12,((len(thumbs)+cols-1)//cols)*300+12),'#DCE5E9'); draw=ImageDraw.Draw(sheet)

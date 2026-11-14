@@ -67,6 +67,194 @@
     "common_initialization_groups_checked": 42
   },
   "supplementary_scope": "Historical exploratory scalar summaries; full archives and source manifests were not retained. MOEA/D and AMOSA records predate scalarization/cooling fixes.",
+  "group": {
+    "number": 14,
+    "members": [
+      {
+        "name": "Akshat Tikaria",
+        "roll": "241070005",
+        "handle": "@akshattikaria",
+        "role": "Group Leader",
+        "contribution": "Published/integrated core and memetic releases, exact reporting and the final audit.",
+        "commits": [
+          "9947d9d",
+          "6e94681",
+          "14888c6",
+          "343b260"
+        ],
+        "prs": [],
+        "paths": [
+          "src/timetable/",
+          "experiments/",
+          "tests/",
+          "report/",
+          "presentation/"
+        ],
+        "evidence": [
+          {
+            "label": "9947d9d",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9947d9d"
+          },
+          {
+            "label": "6e94681",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/6e94681"
+          },
+          {
+            "label": "14888c6",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/14888c6"
+          },
+          {
+            "label": "343b260",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/343b260"
+          }
+        ]
+      },
+      {
+        "name": "Sharma Krish Amit",
+        "roll": "241070036",
+        "handle": "@krisharmaa",
+        "role": "Group member",
+        "contribution": "Clockwork web/API/calendar integration and the disruption algorithm/application.",
+        "commits": [
+          "9987c06",
+          "d7acb20",
+          "4f32a71"
+        ],
+        "prs": [
+          1,
+          2,
+          3
+        ],
+        "paths": [
+          "api/",
+          "frontend/",
+          "src/timetable/disruption.py"
+        ],
+        "evidence": [
+          {
+            "label": "PR #1",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/1"
+          },
+          {
+            "label": "PR #2",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/2"
+          },
+          {
+            "label": "PR #3",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/3"
+          },
+          {
+            "label": "9987c06",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9987c06"
+          },
+          {
+            "label": "d7acb20",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/d7acb20"
+          },
+          {
+            "label": "4f32a71",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/4f32a71"
+          }
+        ]
+      },
+      {
+        "name": "Rajesh Manavaditya",
+        "roll": "241070040",
+        "handle": "@Manavaditya-rajesh",
+        "role": "Group member",
+        "contribution": "Supplementary MOEA/D, AMOSA-inspired annealing, MCDM, CP-SAT epsilon runs and five-method comparison.",
+        "commits": [
+          "cf0110d"
+        ],
+        "prs": [
+          4
+        ],
+        "paths": [
+          "src/timetable/moead.py",
+          "src/timetable/amosa.py",
+          "src/timetable/mcdm.py",
+          "src/timetable/exact.py",
+          "experiments/compare_all_methods.py"
+        ],
+        "evidence": [
+          {
+            "label": "PR #4",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/4"
+          },
+          {
+            "label": "cf0110d",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/cf0110d"
+          }
+        ]
+      },
+      {
+        "name": "Paarth Maharshi",
+        "roll": "241070050",
+        "handle": "@PaarthMaharshi",
+        "role": "Group member",
+        "contribution": "Exact gaps-room references, AHP/sensitivity and studies; measured-only web/report corrections.",
+        "commits": [
+          "7833e17",
+          "c088bcb",
+          "51664e9",
+          "252c12a",
+          "2939788",
+          "f594524"
+        ],
+        "prs": [
+          5
+        ],
+        "paths": [
+          "src/timetable/exact.py",
+          "src/timetable/mcdm.py",
+          "experiments/",
+          "results/moead_paired/",
+          "results/exact_gap/",
+          "frontend/",
+          "report/"
+        ],
+        "evidence": [
+          {
+            "label": "PR #5",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/5"
+          },
+          {
+            "label": "7833e17",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/7833e17"
+          },
+          {
+            "label": "c088bcb",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/c088bcb"
+          },
+          {
+            "label": "51664e9",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/51664e9"
+          },
+          {
+            "label": "252c12a",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/252c12a"
+          },
+          {
+            "label": "2939788",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/2939788"
+          },
+          {
+            "label": "f594524",
+            "url": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/f594524"
+          }
+        ]
+      }
+    ],
+    "professor": {
+      "name": "Professor Akhil Kulal",
+      "handle": "@akhilkulal4050"
+    },
+    "repository": "https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH",
+    "identity_source": "Group-supplied names, rolls, handles and leader/instructor roles.",
+    "contribution_scope": "Recorded submissions/publication, not exclusive personal authorship, hours or eight-week participation.",
+    "contribution_source": "Git commit diffs and GitHub merged PR records, detailed in docs/contributions.md."
+  },
+  "presentation_source_sha256": "6ff566b08ebdc16f483a042c56ad0f3981afb00d0b3888e6048e3675f24a2d03",
   "evidence_sha256": {
     "results/enhancement_validation/summary.json": "7f59b8ddb027a896507ad643ffebf24fa69767c04240621984fa389dec6902c8",
     "results/enhancement_validation/verification.json": "b523037544a46ce21238c2bc96015f70ed793c5fec90df4ed23533481a938f3f",
@@ -78,6 +266,7 @@
     "results/moead_paired/summary.json": "94d502e4b21d6341450e0abae5c775254b711f991c3e16b2e237fc4e86a8d2c2",
     "results/moead_paired/runs.json": "fae8de3fb3bad148d168a63c696e95a7539fb8c5b5f3d5f8869b4960a7b09455",
     "results/exact_gap/summary.json": "3758d9d6c6e24ad3db2a7b0504e4fa618275e46bbb28a298766432ab51dc911a",
-    "results/exact_gap/runs.json": "0b6e73d89a6d3b415bb8fe36dcc061b95cf505837635ccd54d7670921a878425"
+    "results/exact_gap/runs.json": "0b6e73d89a6d3b415bb8fe36dcc061b95cf505837635ccd54d7670921a878425",
+    "docs/contributions.md": "934d7e45e9adc63a1543debd45ae162194047418661298d041c6d713826874af"
   }
 }

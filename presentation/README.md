@@ -1,6 +1,6 @@
 # Final presentation
 
-The presentation contains **22 slides: 18 main slides and 4 backups**, including *Supplementary methods and website*. The PPTX, PDF, `preview.png`, Markdown slides, presenter notes, evidence hashes and build checks were rebuilt together on 2026-11-14. All 22 slides have speaker notes; PDF text and page-bound checks passed, and the rendered contact sheet was inspected.
+The presentation contains **23 slides: 18 main slides and 5 backups**, including *Supplementary methods and website* and *Group 14 recorded contributions*. The PPTX, PDF, `preview.png`, Markdown slides, presenter notes, evidence hashes and build checks were rebuilt together on 2026-11-14. All 23 slides have speaker notes; the visible cover roster, contribution evidence, PDF text and page bounds are checked during the build, and the rendered contact sheet was inspected.
 Suggested duration: 15–18 minutes plus the optional short live demonstration.
 It presents the final **mutation-only feasible memetic NSGA-II**, the completed
 168-run held-out comparison, all four medium/large gains, unfavorable small
@@ -14,9 +14,7 @@ complete timetable trade-offs.
 - [Rendered contact sheet](preview.png).
 - [Build checks](build_checks.json) and [exact evidence values/hashes](evidence.json).
 
-The deck omits unverified personal identities, approval and participation history.
-Add authentic cover details only when the group supplies them; no scientific
-content or figure needs to be filled in.
+The cover identifies **Group 14** with the group-supplied names, rolls and GitHub handles, marks Akshat Tikaria as **Group Leader**, and names **Professor Akhil Kulal**. The contribution backup links recorded commits and merged PRs; its notes identify relevant paths. Detailed evidence and attribution limits are in [contributions](../docs/contributions.md). Recorded submissions and integration do not establish exclusive personal authorship, hours or eight-week participation. No professor approval or approval date is claimed.
 
 ## Rebuilding
 

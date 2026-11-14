@@ -46,6 +46,7 @@ data/itc_inspired/certificates/itc_inspired_01.json
 data/itc_inspired/itc_inspired_01.json
 data/reference_small10.json
 docs/accounts-and-calendar.md
+docs/contributions.md
 docs/disruption.md
 docs/enhancement_study.md
 docs/exact.md

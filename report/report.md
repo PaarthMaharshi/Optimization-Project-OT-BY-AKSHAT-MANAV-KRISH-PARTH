@@ -1,10 +1,21 @@
 # Multi-Objective College Timetable Optimization: final technical report
 
-**Course:** Optimization Techniques · **Group:** four members · **Project duration:** eight weeks.
+**Course:** Optimization Techniques · **Group:** 14 · **Project duration:** eight weeks.
+
+| Member | Roll number | GitHub | Role |
+|---|---|---|---|
+| Akshat Tikaria | 241070005 | [akshattikaria](https://github.com/akshattikaria) | Group Leader |
+| Sharma Krish Amit | 241070036 | [krisharmaa](https://github.com/krisharmaa) | Member |
+| Rajesh Manavaditya | 241070040 | [Manavaditya-rajesh](https://github.com/Manavaditya-rajesh) | Member |
+| Paarth Maharshi | 241070050 | [PaarthMaharshi](https://github.com/PaarthMaharshi) | Member |
+
+**Professor:** Akhil Kulal · GitHub: [akhilkulal4050](https://github.com/akhilkulal4050).
+
+**Repository:** <https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH>.
 
 This report consolidates the original benchmark and the completed feasible-domain enhancement study in the professor's 19-section report structure. The original negative results remain part of the evidence. The final optimizer is an explicitly mutation-only memetic NSGA-II variant, compared with an unchanged strong greedy policy and a matched scalar-local ablation.
 
-**All college datasets and measured results are synthetic.** No real institution, faculty performance, student authorship, approval, or weekly participation is implied. Actual member details, contributions, approval, and repository-access evidence still require genuine completion in Sections 18–19. The [original proposal and assignment](../problem/references/) are primary academic references; [the reference review](../docs/reference_review.md) records justified corrections and scope choices.
+**All college datasets and measured results are synthetic.** Group identities were supplied by the group; Section 18 summarizes contributions supported by actual commits and merged pull requests. Topic approval, access permissions and unrecorded weekly participation are not inferred from these records. The [original proposal and assignment](../problem/references/) are primary academic references; [the reference review](../docs/reference_review.md) records justified corrections and scope choices.
 
 ## 1. Introduction and real-world motivation
 
@@ -432,29 +443,31 @@ Exact epsilon-constraint fronts on tiny cases and minimum-disruption reschedulin
 
 ## 18. Individual contributions
 
-The professor requires exactly four members, meaningful parallel work every week, at least one meaningful personal commit per member per week, individual contribution records, and understanding of the full project for the viva. Those are authentic process requirements. The implementation and experiments do not create retrospective evidence that they occurred.
+The following summarizes actual commits and merged pull requests reachable from the audited `main` revision `343b260`. Names, roll numbers and the Group Leader role were supplied by the group. The descriptions concern recorded changes and are available for member review; they do not infer unrecorded work or exclusive authorship from bulk publication commits.
 
-| Member | Full name / roll number / username | Verified actual contribution and evidence |
+| Member | Recorded contribution | History evidence |
 |---|---|---|
-| Member 1 | Not supplied | To be completed from genuine work and review records; no authorship assigned here. |
-| Member 2 | Not supplied | To be completed from genuine work and review records; no authorship assigned here. |
-| Member 3 | Not supplied | To be completed from genuine work and review records; no authorship assigned here. |
-| Member 4 | Not supplied | To be completed from genuine work and review records; no authorship assigned here. |
+| Akshat Tikaria (Group Leader) | Published/integrated core and validated memetic releases, experiments, tests and academic deliverables; published exact-front reporting and final audit cleanup. | [9947d9d](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9947d9d), [6e94681](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/6e94681), [14888c6](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/14888c6), [343b260](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/343b260) |
+| Sharma Krish Amit | Integrated Clockwork frontend/API, accounts and calendar; added disruption re-optimization, website workflows and related tests. | Merged [PR #1](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/1), [PR #2](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/2), [PR #3](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/3) |
+| Rajesh Manavaditya | Added supplementary MOEA/D, AMOSA-inspired annealing, MCDM, CP-SAT epsilon-constraint runs and five-method comparison/visualization. | Merged [PR #4](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/4); [cf0110d](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/cf0110d) |
+| Paarth Maharshi | Added exact gaps/room references, AHP/sensitivity analysis and supplementary study scripts/results; corrected measured-only website results, optional comparisons and documentation. | Merged [PR #5](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/5); [7833e17](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/7833e17), [51664e9](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/51664e9) |
+
+The [contribution evidence](../docs/contributions.md) identifies representative changed files and distinguishes substantive feature commits from merges. GitHub confirms PRs 1–3 were submitted by `krisharmaa`, PR 4 by `Manavaditya-rajesh`, and PR 5 by `PaarthMaharshi`; all five are merged. Akshat's publication commits are recorded under the Git author label `akshat`; the group supplied his identity and leader role.
 
 | Academic field | Current evidence boundary |
 |---|---|
-| Professor / group number | Not supplied. |
+| Professor / group number | Akhil Kulal (`akhilkulal4050`), Group 14; supplied by the group. |
 | Topic approval / approval date | Not supplied or verified. |
 | Three genuinely different proposals submitted | Only the supplied timetable proposal is evidenced in this repository. |
-| Actual weekly member participation | Not recorded; fill from actual dates, personal commits, reviews, and work. |
+| Actual weekly member participation | Dated commits and merged PRs are verified; a complete eight-week participation record is not established by them. Add only genuine work/review records. |
 
-The [prospective four-member/eight-week plan and evidence template](../docs/project_plan.md) supports genuine completion; it is not a historical log. Final presentation/demo material is under [presentation/](../presentation/). All four students must be able to defend the variables, constraints, algorithms, experiments, unfavorable findings, and proof boundaries themselves.
+The professor requires meaningful parallel work, personal weekly commits and understanding of the full project for the viva. The [prospective four-member/eight-week plan and evidence template](../docs/project_plan.md) is a planning aid, not a historical log. Final presentation/demo material is under [presentation/](../presentation/). All four members should review their contribution wording and be able to defend the variables, constraints, algorithms, experiments, unfavorable findings and proof boundaries themselves.
 
 ## 19. GitHub/GitLab repository link
 
 Repository: <https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH>.
 
-The professor requires a private repository, access for all four members and the professor, and the repository-link submission document after topic approval. Confirm those facts in the actual account settings and record the submitted revision; a URL or publication commit alone does not establish them. No member identities, access approvals, or eight-week history are invented in this report.
+The professor requires a private repository, access for all four members and Professor Akhil Kulal (`akhilkulal4050`), and the repository-link submission document after topic approval. Confirm those facts in the actual account settings and record the submitted revision; the supplied group identities and a repository URL do not establish approval, access permissions or a complete eight-week history.
 
 ### Reproducing and inspecting the submitted work
 

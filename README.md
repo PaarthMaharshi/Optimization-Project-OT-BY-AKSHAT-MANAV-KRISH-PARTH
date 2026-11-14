@@ -8,7 +8,20 @@ The supplied proposal and professor's assignment are primary references. The [re
 
 ## 1. Group details
 
-Four-member, eight-week Optimization Techniques project. Full member names, roll numbers, usernames, group number, professor and approval date were not supplied; the group must complete these before academic submission. This local implementation does not establish individual student authorship.
+**Group 14** · Four-member, eight-week Optimization Techniques project.
+
+| Member | Roll number | GitHub | Role |
+|---|---|---|---|
+| Akshat Tikaria | 241070005 | [akshattikaria](https://github.com/akshattikaria) | Group Leader |
+| Sharma Krish Amit | 241070036 | [krisharmaa](https://github.com/krisharmaa) | Member |
+| Rajesh Manavaditya | 241070040 | [Manavaditya-rajesh](https://github.com/Manavaditya-rajesh) | Member |
+| Paarth Maharshi | 241070050 | [PaarthMaharshi](https://github.com/PaarthMaharshi) | Member |
+
+**Professor:** Akhil Kulal · GitHub: [akhilkulal4050](https://github.com/akhilkulal4050).
+
+**Repository:** <https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH>.
+
+Member and professor details were supplied by the group. Topic approval/date and repository-access evidence remain to be confirmed; they are not inferred from these details.
 
 ## 2. Problem statement
 
@@ -241,11 +254,20 @@ Heuristic archives are non-dominated over discovered feasible schedules. Exhaust
 
 ## 11. Individual contributions
 
-Personal contributions were not supplied and are **not retrospectively assigned**. The group must record authentic work, review, understanding and authorized commits. Suggested parallel responsibilities are model/formulation, algorithms, Pareto/verification, and data/experiments, with weekly cross-review. See [the evidence template](docs/project_plan.md).
+The following summarizes recorded changes in the Git history and merged pull requests. Full names and roles were supplied by the group; the wording can be reviewed by the members.
+
+| Member | Recorded contribution | Evidence |
+|---|---|---|
+| Akshat Tikaria · Group Leader | Published and integrated the core optimization and validated memetic releases, experiments, tests and academic deliverables; published exact-front reporting and final merged-code audit cleanup. | [9947d9d](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/9947d9ded50c762c5b8478ed29d612b508996cd6), [6e94681](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/6e9468183d22569939ee6aa8c51811ad2297680d), [14888c6](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/14888c6), [343b260](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/343b260521a66906b6a63bbc9ad80a4c856b9e63) |
+| Sharma Krish Amit | Integrated the Clockwork frontend/API, accounts and calendar; added disruption re-optimization, website workflows and related tests. | Merged [PR #1](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/1), [PR #2](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/2), [PR #3](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/3) |
+| Rajesh Manavaditya | Added supplementary MOEA/D, AMOSA-inspired annealing, MCDM, CP-SAT epsilon-constraint runs and the five-method comparison/visualization. | Merged [PR #4](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/4), [cf0110d](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/cf0110dce79d8838a7bd9346177351c26be2f4f7) |
+| Paarth Maharshi | Added exact gaps/room references, AHP and sensitivity analysis, supplementary study scripts/results; corrected measured-only website results, optional comparisons and documentation. | Merged [PR #5](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/pull/5), [7833e17](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/7833e17), [51664e9](https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH/commit/51664e979c808d5b9b575aa4b22ca2d66392b135) |
+
+See [contribution evidence and representative files](docs/contributions.md). Bulk publication commits establish publication/integration, not exclusive personal authorship of every file. No hours, unrecorded work or weekly participation dates are inferred.
 
 ## 12. Weekly progress log
 
-Eight weeks of personal development history cannot be created in one cloud task. Technical artifacts and verification records exist; historical weekly participation is unrecorded. The [prospective eight-week plan](docs/project_plan.md) supplies parallel tasks without inventing dates or commits. The original project was published in one authorized commit (`9947d9d`); the completed follow-up and final presentation are published as a separate authorized update. This publication records the delivered work and does not establish eight weeks of individual participation.
+The repository contains dated member commits and merged pull requests, summarized in [the contribution evidence](docs/contributions.md). They do not establish a complete eight-week participation log. The [prospective eight-week plan](docs/project_plan.md) remains a planning template rather than retrospective history. The original project and memetic follow-up were published in bulk commits (`9947d9d`, `6e94681`); later member PRs and audit commits record subsequent changes. The group should add any genuine weekly work/review records it has, without inventing dates or activity.
 
 ## 13. References
 
