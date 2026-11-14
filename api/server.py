@@ -97,8 +97,8 @@ def _work(job_id: str, problem, cfg: RunConfig, user: str, scenario: str, change
         result = run_optimizer(problem, cfg, progress, run_id=job_id)
         result["params"].update(scenario=scenario, constraintChanges=changes)
         job["result"] = result
-        job["status"] = "done"
         _store_run(job_id, user, scenario, result)
+        job["status"] = "done"
     except NoFeasibleTimetable as e:
         job["status"] = "error"
         job["error"] = str(e)

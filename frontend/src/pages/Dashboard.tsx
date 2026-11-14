@@ -152,20 +152,9 @@ function Convergence({ stats }: { stats: RunStats }) {
   const xTicks = [0, 0.25, 0.5, 0.75, 1.0].map((t) => Math.round(t * maxEval));
   const yTicks = [0, 0.25, 0.5, 0.75, 1.0].map((t) => +(minHv + t * (maxHv - minHv)).toFixed(2));
 
-  // Helper to interpolate HV value of an algorithm at a specific evaluation
-  const getHvAt = (pts: { evaluations: number; hypervolume: number }[], targetEv: number) => {
-    if (!pts.length) return 0;
-    if (targetEv <= pts[0].evaluations) return pts[0].hypervolume;
-    if (targetEv >= pts[pts.length - 1].evaluations) return pts[pts.length - 1].hypervolume;
-    for (let i = 0; i < pts.length - 1; i++) {
-      if (pts[i].evaluations <= targetEv && pts[i + 1].evaluations >= targetEv) {
-        const span = pts[i + 1].evaluations - pts[i].evaluations;
-        const frac = span > 0 ? (targetEv - pts[i].evaluations) / span : 0;
-        return +(pts[i].hypervolume + frac * (pts[i + 1].hypervolume - pts[i].hypervolume)).toFixed(3);
-      }
-    }
-    return pts[pts.length - 1].hypervolume;
-  };
+  // Show the last recorded sample, including its evaluation count, without inventing intermediate measurements.
+  const getSampleAt = (pts: { evaluations: number; hypervolume: number }[], targetEv: number) =>
+    [...pts].reverse().find((p) => p.evaluations <= targetEv);
 
   // Helper to calculate evaluations needed to reach quality milestone (~0.95 HV)
   const targetMilestone = Math.min(0.95, +(highestHv * 0.95).toFixed(2));
@@ -246,9 +235,9 @@ function Convergence({ stats }: { stats: RunStats }) {
               cursor: 'pointer',
             }}
             onClick={() => setFocusView(false)}
-            title="View full scale from 0.00 to 1.20"
+            title="View the full hypervolume scale"
           >
-            🌐 Full Scale (0–1.20)
+            🌐 Full Scale (0–{(Math.ceil(highestHv * 1.15 * 10) / 10).toFixed(2)})
           </button>
         </div>
       </div>
@@ -457,7 +446,9 @@ function Convergence({ stats }: { stats: RunStats }) {
             const isDim = hoveredAlgo && hoveredAlgo !== c.id;
             const isHovered = hoveredAlgo === c.id;
             const d = c.points
-              .map((p, i) => `${i ? 'L' : 'M'}${x(p.evaluations).toFixed(1)} ${y(p.hypervolume).toFixed(1)}`)
+              .map((p, i) => i
+                ? `H${x(p.evaluations).toFixed(1)} V${y(p.hypervolume).toFixed(1)}`
+                : `M${x(p.evaluations).toFixed(1)} ${y(p.hypervolume).toFixed(1)}`)
               .join(' ');
             const lastPt = c.points[c.points.length - 1];
 
@@ -508,7 +499,7 @@ function Convergence({ stats }: { stats: RunStats }) {
 
         {/* Floating Tooltip inside SVG - zero DOM reflow */}
         {hoverEval !== null && (() => {
-          const tooltipW = 155;
+          const tooltipW = 185;
           const tooltipH = 33.5 + plotted.length * 12.5;
           const curX = x(hoverEval);
           const leftSide = curX > padL + plotW - tooltipW - 12;
@@ -528,12 +519,13 @@ function Convergence({ stats }: { stats: RunStats }) {
                 opacity="0.6"
               />
               {plotted.map((c) => {
-                const val = getHvAt(c.points, hoverEval);
+                const sample = getSampleAt(c.points, hoverEval);
+                if (!sample) return null;
                 return (
                   <circle
                     key={'dot-' + c.id}
                     cx={curX}
-                    cy={y(val)}
+                    cy={y(sample.hypervolume)}
                     r={hoveredAlgo === c.id ? 5 : 3.5}
                     fill={c.color}
                     stroke="#fff"
@@ -553,10 +545,10 @@ function Convergence({ stats }: { stats: RunStats }) {
                 strokeWidth="1"
               />
               <text x={boxX + 8} y={boxY + 16} fontSize="10" fontWeight="700" fill="#f8fafc">
-                Eval {hoverEval} of {maxEval}
+                Last sample at/before eval {hoverEval}
               </text>
               {plotted.map((c, idx) => {
-                const val = getHvAt(c.points, hoverEval);
+                const sample = getSampleAt(c.points, hoverEval);
                 const rowY = boxY + 31 + idx * 12.5;
                 const shortName = c.short;
                 return (
@@ -566,7 +558,7 @@ function Convergence({ stats }: { stats: RunStats }) {
                       {shortName}:
                     </text>
                     <text x={boxX + tooltipW - 8} y={rowY} fontSize="9" fontWeight="600" fill="#f8fafc" textAnchor="end">
-                      {val.toFixed(3)}
+                      {sample ? `${sample.hypervolume.toFixed(3)} @ ${sample.evaluations}` : 'No sample yet'}
                     </text>
                   </g>
                 );

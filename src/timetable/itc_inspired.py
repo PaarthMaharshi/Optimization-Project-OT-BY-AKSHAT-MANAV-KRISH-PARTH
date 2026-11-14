@@ -42,6 +42,11 @@ def generate_itc_inspired_instance(
     room-fit, gap and workload trade-offs.  The certificate is built by the
     constructive heuristic and independently checked; it shows feasibility only.
     """
+    if any(type(value) is not int or value < 1 for value in
+           (num_curricula, courses_per_curriculum, num_rooms)):
+        raise ValueError("num_curricula, courses_per_curriculum and num_rooms must be positive integers")
+    if type(num_faculty) is not int or num_faculty < 2:
+        raise ValueError("num_faculty must be an integer >= 2 for primary and backup teachers")
     rng = random.Random(seed)
 
     days = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
@@ -151,11 +156,13 @@ def generate_itc_inspired_instance(
     certificate = construct(problem, rng, randomized=False)
     ev = evaluate(problem, certificate)
     if not ev.feasible:
-        # If deterministic failed, try randomized seeds to guarantee planted certificate
+        # If deterministic construction failed, try bounded randomized restarts.
         for attempt in range(1, 100):
             certificate = construct(problem, random.Random(seed + attempt * 17), randomized=True)
             if evaluate(problem, certificate).feasible:
                 break
 
-    assert evaluate(problem, certificate).feasible, "Failed to build a feasible certificate for the ITC-inspired instance"
+    if not evaluate(problem, certificate).feasible:
+        raise RuntimeError("Failed to build a feasible certificate for the ITC-inspired instance; "
+                           "the requested dimensions may be infeasible")
     return problem, certificate

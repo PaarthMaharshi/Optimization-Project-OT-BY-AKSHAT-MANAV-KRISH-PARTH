@@ -72,14 +72,27 @@ routines build on it, and all three are statements about the pair (f1, f2):
 
 - `epsilon_constraint_cp_sat` minimizes one of the two objectives for a grid of
   bounds on the other. Each `OPTIMAL` step proves that minimum for that bound.
-  The output is a set of trade-off points, not a complete front.
+  A scalar optimum can still be dominated in the secondary objective when
+  ties are not refined lexicographically. The output is a set of feasible
+  objective candidates, not a certified complete front or a guaranteed subset
+  of the global front.
 - `exact_gaps_room_front` uses a lexicographic epsilon-constraint with bounds in
   exact integer units and reports `complete = True` only when every solve ended
   with an optimality or infeasibility proof. Only then is the result the
   complete Pareto front of (f1, f2).
-- `weighted_sum_cp_sat` minimizes positive weighted sums of f1 and f2. Its
-  optima are Pareto-optimal for (f1, f2) but can only be supported points.
+- `weighted_sum_cp_sat` minimizes positive weighted sums of f1 and f2. A proven
+  global scalar optimum is Pareto-optimal for (f1, f2) and supported. A
+  time-limited feasible incumbent has neither guarantee. A finite weight sweep
+  need not recover every supported point.
 
 None of them optimizes workload balance (f3), so none of them yields or
 certifies a three-objective Pareto front. The f3 values shown next to these
 points are those of the particular schedules CP-SAT returned.
+
+The supplementary saved comparison in `results/exact_gap` retains instance
+definitions, exact integer/rational objective summaries, solver statuses and
+derived heuristic comparison rows. It does not retain the returned schedules,
+complete heuristic objective archives or a frozen source manifest. The final
+audit checked its summary arithmetic, without rerunning the timed proofs;
+feasibility and optimality cannot be independently reconstructed from those
+records alone. See [the supplementary evidence boundaries](ot_advanced_methods.md).

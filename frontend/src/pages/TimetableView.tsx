@@ -16,6 +16,7 @@ export default function TimetableView() {
   const { pub, error } = usePublished();
   const [view, setView] = useState<{ kind: ViewKind; entityId: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   if (error) return <p className="error-box">{error}</p>;
@@ -64,7 +65,7 @@ export default function TimetableView() {
             </button>
           ))}
         </div>
-        <select className="input" style={{ width: 'auto' }} value={v.entityId} onChange={(e) => setView({ ...v, entityId: e.target.value })}>
+        <select className="input" aria-label="Timetable entity" style={{ width: 'auto' }} value={v.entityId} onChange={(e) => setView({ ...v, entityId: e.target.value })}>
           {entities.map((x) => (
             <option key={x.id} value={x.id}>
               {x.name}
@@ -78,8 +79,11 @@ export default function TimetableView() {
           onClick={async () => {
             if (!ref.current) return;
             setBusy(true);
+            setExportError(null);
             try {
               await exportPng(ref.current, file + '.png');
+            } catch (e) {
+              setExportError(e instanceof Error ? e.message : 'Picture export failed.');
             } finally {
               setBusy(false);
             }
@@ -91,6 +95,7 @@ export default function TimetableView() {
           ⤓ Export CSV
         </button>
       </div>
+      {exportError && <div className="error-box" role="alert">{exportError}</div>}
       <div className="frame">
         <PosterFrame w={size.w} h={size.h} maxH={Math.max(520, window.innerHeight - 200)}>
           <TimetablePoster

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from fractions import Fraction
 from math import isfinite, lcm
 from itertools import product
 from time import perf_counter
@@ -217,6 +218,10 @@ def cp_sat(
         raise ValueError("weights are only used with objective='weighted'")
     if epsilon_bound is not None and epsilon_bound_units is not None:
         raise ValueError("give epsilon_bound or epsilon_bound_units, not both")
+    if (epsilon_bound is not None or epsilon_bound_units is not None) and epsilon_objective is None:
+        raise ValueError("an epsilon bound requires epsilon_objective")
+    if epsilon_bound is not None and not isfinite(epsilon_bound):
+        raise ValueError("epsilon_bound must be finite")
     if epsilon_bound_units is not None and (isinstance(epsilon_bound_units, bool)
                                             or not isinstance(epsilon_bound_units, int)):
         raise ValueError("epsilon_bound_units must be an integer")
@@ -390,8 +395,11 @@ def cp_sat(
     # Apply Epsilon Constraint if requested
     if epsilon_objective is not None and (epsilon_bound is not None or epsilon_bound_units is not None):
         scale = room_scale if epsilon_objective == "room" else gap_scale
+        # Bounds round down: rounding to the nearest unit could admit a
+        # timetable whose objective exceeds the requested epsilon. Decimal
+        # conversion also preserves an intended exact endpoint such as 0.3.
         scaled_bound = (epsilon_bound_units if epsilon_bound_units is not None
-                        else int(round(epsilon_bound * scale)))
+                        else int(Fraction(str(epsilon_bound)) * scale // 1))
         model.Add(sum(room_terms if epsilon_objective == "room" else gap_terms) <= scaled_bound)
 
     objective_scale = 1
@@ -489,11 +497,11 @@ def epsilon_constraint_cp_sat(
       for that bound; steps that hit the time limit prove nothing;
     * the bounded objective is not minimized afterwards, so a returned point
       can be only weakly efficient until the final dominance filter;
-    * a fixed grid can step over front points, so the result is generally a
-      subset of the (f1, f2) front;
+    * a fixed grid can step over front points, and without a lexicographic
+      tie-break a returned point need not be globally efficient;
     * workload balance (f3) is not in the CP-SAT model.  Its value is reported
-      for each schedule and used by the final dominance filter, but it is not
-      optimized: this is not a three-objective Pareto front.
+      for each schedule; the final dominance filter uses only (f1, f2).
+      This is not a three-objective Pareto front.
 
     Use ``exact_gaps_room_front`` for the complete, certified (f1, f2) front.
 
@@ -513,7 +521,7 @@ def epsilon_constraint_cp_sat(
         raise ValueError("epsilon_objective must be 'gaps' or 'room'")
     if primary_objective == epsilon_objective:
         raise ValueError("primary_objective and epsilon_objective must differ")
-    if steps < 2:
+    if type(steps) is not int or steps < 2:
         raise ValueError("steps must be an integer >= 2")
 
     started = perf_counter()
@@ -522,21 +530,26 @@ def epsilon_constraint_cp_sat(
     min_res = cp_sat(problem, objective=epsilon_objective, time_limit=time_limit_per_step, seed=seed)
     if min_res.schedule is None:
         return EpsilonParetoResult([], [], 0, 0, 0, perf_counter() - started, [], {"error": f"No solution for the {epsilon_objective} anchor within the time limit (status {min_res.status}); this is not an infeasibility proof unless the status is INFEASIBLE"})
-    min_eps = min_res.objective_value
+    unit_name = "room" if epsilon_objective == "room" else "gap"
+    scale = min_res.metadata[f"{unit_name}_scale"]
+    min_units = min_res.metadata[f"{unit_name}_units"]
+    min_eps = min_units / scale
 
     # Step 2: Find anchor point 2 (minimizing primary_objective)
-    prim_res = cp_sat(problem, objective=primary_objective, time_limit=time_limit_per_step, seed=seed)
+    prim_res = cp_sat(problem, objective=primary_objective, time_limit=time_limit_per_step, seed=seed,
+                      epsilon_objective=epsilon_objective)
     if prim_res.schedule is None:
         return EpsilonParetoResult([], [], 0, 0, 0, perf_counter() - started, [], {"error": f"No solution for the {primary_objective} anchor within the time limit (status {prim_res.status}); this is not an infeasibility proof unless the status is INFEASIBLE"})
     
-    ev_prim = evaluate(problem, prim_res.schedule)
-    max_eps = ev_prim.objectives[1 if epsilon_objective == "room" else 0]
+    max_units = prim_res.metadata[f"{unit_name}_units"]
+    max_eps = max_units / scale
 
     # Step 3: Construct epsilon grid
-    if max_eps <= min_eps + 1e-6:
-        eps_grid = [min_eps]
+    if max_units <= min_units:
+        bound_units = [min_units]
     else:
-        eps_grid = [min_eps + i * (max_eps - min_eps) / (steps - 1) for i in range(steps)]
+        bound_units = [min_units + i * (max_units - min_units) // (steps - 1) for i in range(steps)]
+    eps_grid = [units / scale for units in bound_units]
 
     discovered_schedules: list[Schedule] = []
     discovered_objectives: list[tuple[float, float, float]] = []
@@ -551,14 +564,14 @@ def epsilon_constraint_cp_sat(
             discovered_objectives.append(ev.objectives)
 
     # Step 4: Step through the epsilon grid
-    for eps in eps_grid:
+    for units in bound_units:
         step_res = cp_sat(
             problem,
             objective=primary_objective,
             time_limit=time_limit_per_step,
             seed=seed,
             epsilon_objective=epsilon_objective,
-            epsilon_bound=eps,
+            epsilon_bound_units=units,
         )
         if step_res.status == "OPTIMAL":
             optimal_count += 1
@@ -569,18 +582,18 @@ def epsilon_constraint_cp_sat(
                 discovered_schedules.append(step_res.schedule)
                 discovered_objectives.append(ev.objectives)
 
-    # Step 5: keep the points not dominated by another point found here
+    # Step 5: filter only the modeled two objectives. Report one schedule per
+    # pair, choosing the best observed workload solely to break exact ties.
     def dominates(a, b):
         return all(x <= y for x, y in zip(a, b)) and any(x < y for x, y in zip(a, b))
 
-    pareto_schedules = []
-    pareto_objectives = []
+    representatives = {}
     for sched, objs in zip(discovered_schedules, discovered_objectives):
-        if not any(dominates(other, objs) for other in discovered_objectives):
-            pareto_schedules.append(sched)
-            pareto_objectives.append(objs)
-
-    ordered = sorted(zip(pareto_objectives, pareto_schedules), key=lambda it: it[0])
+        pair = objs[:2]
+        if not any(dominates(other[:2], pair) for other in discovered_objectives):
+            if pair not in representatives or objs[2] < representatives[pair][0][2]:
+                representatives[pair] = (objs, sched)
+    ordered = sorted(representatives.values(), key=lambda it: it[0])
 
     return EpsilonParetoResult(
         archive=[s for _, s in ordered],
@@ -661,6 +674,8 @@ def exact_gaps_room_front(
     from .evaluation import evaluate
 
     started = perf_counter()
+    if type(max_points) is not int or max_points < 1:
+        raise ValueError("max_points must be a positive integer")
     points: list[BiObjectivePoint] = []
     solves = 0
     complete = False

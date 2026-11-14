@@ -1,6 +1,6 @@
 # Final presentation
 
-The slide sources define **22 slides: 18 main slides and 4 backups**. The fourth backup, *Supplementary methods and website*, was added to the sources (`build_presentation.py`, `slides.md`, `presenter_notes.md`) after the last build. **The committed PPTX, PDF, `preview.png` and `build_checks.json` are still the 21-slide build and do not contain it; rebuild them with the command below before presenting.**
+The presentation contains **22 slides: 18 main slides and 4 backups**, including *Supplementary methods and website*. The PPTX, PDF, `preview.png`, Markdown slides, presenter notes, evidence hashes and build checks were rebuilt together on 2026-11-14. All 22 slides have speaker notes; PDF text and page-bound checks passed, and the rendered contact sheet was inspected.
 Suggested duration: 15–18 minutes plus the optional short live demonstration.
 It presents the final **mutation-only feasible memetic NSGA-II**, the completed
 168-run held-out comparison, all four medium/large gains, unfavorable small
@@ -41,6 +41,8 @@ See [numerical precision](../docs/numerical_precision.md).
 
 The builder reads saved measurements and creates presentation artifacts only;
 it never runs an optimizer or changes experimental records.
+
+The supplementary backup labels the later studies exploratory: their saved scalar summaries lack complete schedule archives and source manifests, and older MOEA/D/AMOSA runs predate scalarization/cooling fixes. The primary numerical results and frozen measurements are preserved. Demo execution entries in `build_checks.json` are retained historical checks; rebuilding the deck does not repeat the demo.
 
 The shared slide specification is in `build_presentation.py`. It produces the
 editable PPTX, matching LibreOffice PDF, complete Markdown and presenter notes.

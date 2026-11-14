@@ -39,7 +39,7 @@ export default function Inbox() {
 
   const close = () => {
     setShowInbox(false);
-    if (unread) post('/notifications/read').then(load);
+    if (unread) post('/notifications/read').then(load).catch(() => {});
   };
 
   return (

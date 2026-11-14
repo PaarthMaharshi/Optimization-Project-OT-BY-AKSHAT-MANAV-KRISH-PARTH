@@ -33,6 +33,7 @@ h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 600; margin: 0; letter
 /* Sidebar */
 .side {
   position: sticky; top: 0; height: 100vh;
+  z-index: 40;
   padding: 26px 18px; display: flex; flex-direction: column; gap: 6px;
   border-right: 1.5px dashed var(--line);
   background: rgba(255, 253, 248, 0.6);

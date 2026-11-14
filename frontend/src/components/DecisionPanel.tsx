@@ -50,8 +50,10 @@ export default function DecisionPanel({ front, selectedId, onSelect }: { front: 
   const weightSum = weights[0] + weights[1] + weights[2];
 
   useEffect(() => {
+    setResult(null);
+    setError(null);
     if (!objectives.length || (mode === 'weights' && weightSum <= 0)) {
-      setResult(null);
+      setLoading(false);
       return;
     }
     let cancelled = false;

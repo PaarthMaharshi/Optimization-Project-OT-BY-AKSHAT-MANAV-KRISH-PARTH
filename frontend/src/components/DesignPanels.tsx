@@ -176,7 +176,7 @@ export function ContentPanel() {
             </button>
           ))}
         </div>
-        <select className="input" value={view.entityId} onChange={(e) => setView(view.kind, e.target.value)}>
+        <select className="input" aria-label="Timetable entity" value={view.entityId} onChange={(e) => setView(view.kind, e.target.value)}>
           {entities.map(([id, name]) => (
             <option key={id} value={id}>
               {name}

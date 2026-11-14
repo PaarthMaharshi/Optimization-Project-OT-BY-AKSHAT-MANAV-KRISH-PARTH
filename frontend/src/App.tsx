@@ -15,7 +15,7 @@ import AccountBox from './components/AccountBox';
 import { api, useAuth, type Role } from './auth';
 
 const Icon = ({ d }: { d: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d={d} />
   </svg>
 );
@@ -80,7 +80,7 @@ export default function App() {
         <div className="logo-sub">Multi-objective timetabling</div>
         <nav className="nav">
           {pages.map((p) => (
-            <NavLink key={p.path} to={p.path} end={p.path === '/'}>
+            <NavLink key={p.path} to={p.path} end={p.path === '/'} aria-label={p.label}>
               <Icon d={ICONS[p.icon]} />
               <span>{p.label}</span>
               {p.path === '/disruptions' && openDisruptions > 0 && <span className="badge">{openDisruptions}</span>}

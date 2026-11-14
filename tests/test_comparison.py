@@ -163,6 +163,93 @@ def test_comparison_checkpoint_resume_and_cached_hypervolume_validation(tmp_path
         comparison.run_comparison(path, root=tmp_path, resume=True)
 
 
+@pytest.fixture
+def cached_comparison():
+    problem = conflict_instance("room")
+    payload = json.loads(json.dumps(comparison.run_comparison_method(problem, "greedy", seed=5, budget=4, population_size=2)))
+    comparison._validate_cached(problem, payload, {})
+    return problem, payload
+
+
+@pytest.mark.parametrize("change", ["float_count", "float_genotype_count", "missing_history", "sequence",
+                                   "float_sequence", "cutoff", "late_flag", "elapsed", "history_hv",
+                                   "candidate_nonfinite", "missing_field"])
+def test_cached_comparison_rejects_invalid_history_and_accounting(cached_comparison, change):
+    problem, payload = cached_comparison
+    if change == "float_count":
+        payload["evaluations"] = float(payload["evaluations"])
+    elif change == "float_genotype_count":
+        key = next(iter(payload["genotype_evaluation_counts"]))
+        payload["genotype_evaluation_counts"][key] = float(payload["genotype_evaluation_counts"][key])
+    elif change == "missing_history":
+        payload["history"].pop()
+    elif change == "sequence":
+        payload["history"][0]["generation"] = 1
+    elif change == "float_sequence":
+        payload["history"][0]["evaluations"] = 1.0
+    elif change == "cutoff":
+        payload["quality_cutoff_seconds"] += 1
+    elif change == "late_flag":
+        payload["history"][0]["completed_after_deadline"] = True
+    elif change == "elapsed":
+        payload["history"][0]["elapsed_seconds"] = payload["runtime"] + 1
+    elif change == "history_hv":
+        payload["history"][0]["hypervolume"] += 0.01
+    elif change == "candidate_nonfinite":
+        payload["history"][0]["candidate_objectives"][0] = float("nan")
+    else:
+        del payload["history"][0]["schedule_sha256"]
+    with pytest.raises(ValueError, match="Cached comparison"):
+        comparison._validate_cached(problem, payload, {})
+
+
+@pytest.mark.parametrize("change", ["duplicate", "dominated"])
+def test_cached_comparison_rejects_raw_archive_redundancy_even_when_hv_is_unchanged(cached_comparison, change):
+    problem, payload = cached_comparison
+    if change == "duplicate":
+        schedule = comparison.schedule_from_dict(payload["archive"][0])
+    else:
+        schedule = Schedule((Placement(1, "large"), Placement(3, "large")), ("A", "B"))
+        assert any(comparison.dominates(v, evaluate(problem, schedule).objectives) for v in payload["objectives"])
+    payload["archive"].append(schedule_to_dict(schedule))
+    payload["objectives"].append(list(evaluate(problem, schedule).objectives))
+    payload["archive_size"] += 1
+    with pytest.raises(ValueError, match="unique nondominated"):
+        comparison._validate_cached(problem, payload, {})
+
+
+def test_cached_archive_requires_the_observed_on_time_schedule_hash(cached_comparison):
+    from itertools import product
+
+    problem, payload = cached_comparison
+    target = payload["objectives"][0]
+    placements = (Placement(0, "small"), Placement(1, "large"), Placement(2, "small"), Placement(3, "large"))
+    alternative = next(
+        candidate for a, b, teachers in product(placements, placements, product(("A", "B"), repeat=2))
+        if evaluate(problem, candidate := Schedule((a, b), teachers)).feasible
+        and list(evaluate(problem, candidate).objectives) == target
+        and comparison._digest(schedule_to_dict(candidate)) not in payload["genotype_evaluation_counts"]
+    )
+    payload["archive"][0] = schedule_to_dict(alternative)
+    with pytest.raises(ValueError, match="provenance"):
+        comparison._validate_cached(problem, payload, {})
+
+
+@pytest.mark.parametrize("method", comparison.METHODS)
+def test_cached_history_validation_accepts_each_observed_policy(method):
+    problem = conflict_instance("room")
+    payload = json.loads(json.dumps(comparison.run_comparison_method(problem, method, seed=3, budget=8, population_size=2)))
+    comparison._validate_cached(problem, payload, {})
+
+
+def test_cached_history_validation_accepts_zero_calls_at_wall_deadline():
+    problem = conflict_instance("room")
+    payload = comparison.run_comparison_method(problem, "original_enhanced", budget=8, population_size=2,
+                                                time_limit=1e-12)
+    assert payload["history"] == []
+    comparison._validate_cached(problem, payload, {})
+
+
 @pytest.mark.parametrize("override", [
     {"methods": ["greedy", "greedy"]},
     {"protocols": ["wall_time"], "scenarios": [{"size": "small", "budget": 4}]},

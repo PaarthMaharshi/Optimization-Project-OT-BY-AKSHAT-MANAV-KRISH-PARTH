@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,7 @@ from timetable.moead import moead
 from timetable.nsga2 import nsga2
 
 from .bridge import problem_to_web, schedule_to_solution
+from experiments.exact_fronts import clean_run, coordinates, exact_key
 
 ROOT = Path(__file__).resolve().parents[1]
 METHOD = "Feasible memetic NSGA-II (final method)"
@@ -56,6 +58,22 @@ def _compromise(values: list[tuple[float, float, float]]) -> int:
     span = np.ptp(a, axis=0)
     scaled = (a - a.min(axis=0)) / np.where(span > 0, span, 1)
     return int(np.argmin(np.linalg.norm(scaled, axis=1)))
+
+
+def _canonical_run(problem, result, method, seed):
+    """Keep native measurements; apply the project's exact reporting cleanup."""
+    raw = serialize_run(problem, result, method, seed)
+    exact = clean_run(problem, {**raw, "objectives": [list(v) for v in raw["objectives"]]},
+                      include_schedules=True)
+    archive = [result.archive[i] for i in exact["survivor_indices"]]
+    return raw, exact, archive
+
+
+def _canonical_solution(problem, schedule, sid, on_front, values=None, evaluation=None):
+    solution = schedule_to_solution(problem, schedule, sid, on_front, evaluation)
+    values = values if values is not None else coordinates(exact_key(problem, schedule))
+    solution["objectives"] = dict(zip(("f1", "f2", "f3"), values))
+    return solution
 
 
 def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], None] | None = None,
@@ -89,15 +107,15 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
             "No feasible timetable was found within this budget. This is a search failure, not a proof that the "
             "constraints are impossible: try a larger budget/time, or relax teacher availability." + detail)
 
-    run = serialize_run(problem, memetic_res, "memetic", cfg.seed)
+    run, primary_exact, primary_archive = _canonical_run(problem, memetic_res, "memetic", cfg.seed)
     eval_budget = memetic_res.evaluations
 
-    memetic_front = [{"f1": v[0], "f2": v[1], "f3": v[2]} for v in run["objectives"]]
+    memetic_front = [{"f1": v[0], "f2": v[1], "f3": v[2]} for v in primary_exact["objectives"]]
 
     # Comparison algorithms. Only algorithms that were actually run appear in the result: a run that was not
     # requested, or that failed, is reported as such and never replaced by an estimate.
     comparisons: dict[str, dict] = {}
-    baseline_run = baseline_result = None
+    baseline_run = baseline_result = baseline_exact = None
     baseline = None
     baseline_front: list[dict] = []
 
@@ -106,19 +124,17 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
         t0 = perf_counter()
         try:
             result = search()
+            _, exact, _ = _canonical_run(problem, result, key, cfg.seed)
         except Exception as error:  # the comparison is optional; say that it failed instead of inventing a result
             comparisons[key] = {"status": "failed", "error": f"{type(error).__name__}: {error}",
                                 "runtime": perf_counter() - t0, "front": [], "hv": None, "history": []}
             return
-        objectives = []
-        for schedule in result.archive:
-            ev = evaluate(problem, schedule)
-            if ev.feasible:  # independent check of every reported point
-                objectives.append(ev.objectives)
+        objectives = exact["objectives"]
         normalized = [normalize(v, scales) for v in objectives]
         comparisons[key] = {
             "status": "ok" if objectives else "no_feasible",
-            "runtime": perf_counter() - t0,
+            "runtime": result.runtime,
+            "evaluations": result.evaluations,
             "front": [{"f1": v[0], "f2": v[1], "f3": v[2]} for v in objectives],
             "hv": hypervolume(normalized) if normalized else 0.0,
             "history": result.history,
@@ -137,20 +153,22 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
         # Greedy / DSatur baseline under the same evaluation budget
         report({"phase": "baseline", "evaluations": eval_budget, "budget": eval_budget, "seconds": perf_counter() - started})
         baseline_result = greedy_search(problem, cfg.seed, eval_budget)
-        baseline_run = serialize_run(problem, baseline_result, "greedy", cfg.seed)
-        if baseline_result is not None and baseline_result.archive:
-            values = [tuple(v) for v in baseline_run["objectives"]]
-            pick = baseline_result.archive[_compromise(values)]
-            baseline = schedule_to_solution(problem, pick, "GREEDY", False)
+        baseline_run, baseline_exact, baseline_archive = _canonical_run(problem, baseline_result, "greedy", cfg.seed)
+        if baseline_archive:
+            values = baseline_exact["objectives"]
+            chosen = _compromise(values)
+            pick = baseline_archive[chosen]
+            baseline = _canonical_solution(problem, pick, "GREEDY", False, values[chosen])
             baseline_front = [{"f1": v[0], "f2": v[1], "f3": v[2]} for v in values]
 
     report({"phase": "export", "evaluations": memetic_res.evaluations, "budget": cfg.budget, "seconds": perf_counter() - started})
 
     # Prepare solution objects for the primary Pareto front
     solutions = []
-    archive_keys = set(memetic_res.archive)
-    for i, schedule in enumerate(memetic_res.archive):
-        solutions.append(schedule_to_solution(problem, schedule, f"S{i + 1:03d}", True))
+    archive_keys = set(primary_archive)
+    for i, schedule in enumerate(primary_archive):
+        solutions.append(_canonical_solution(problem, schedule, f"S{i + 1:03d}", True,
+                                             primary_exact["objectives"][i]))
     extra = 0
     for schedule in dict.fromkeys(memetic_res.population):
         if schedule in archive_keys:
@@ -158,7 +176,8 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
         ev = evaluate(problem, schedule)
         if ev.feasible:
             extra += 1
-            solutions.append(schedule_to_solution(problem, schedule, f"S{len(memetic_res.archive) + extra:03d}", False, ev))
+            solutions.append(_canonical_solution(problem, schedule, f"S{len(primary_archive) + extra:03d}", False,
+                                                 evaluation=ev))
 
     meta = memetic_res.metadata
 
@@ -167,7 +186,7 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
             "amosa": ("AMOSA (Simulated Annealing)", "#7c3aed", "diamond"),
             "nsga2": ("Standard NSGA-II", "#ea580c", "square")}
     algorithm_comparison = [
-        {"id": "memetic", "name": "Memetic NSGA-II", "status": "ok", "hv": round(run["hypervolume"], 4),
+        {"id": "memetic", "name": "Memetic NSGA-II", "status": "ok", "hv": round(primary_exact["corrected_hypervolume"], 4),
          "runtime": round(run["runtime"], 2), "frontSize": len(memetic_front), "feasible": True,
          "color": "#2563eb", "marker": "circle"},
     ]
@@ -182,7 +201,7 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
     if baseline_run:
         algorithm_comparison.append(
             {"id": "greedy", "name": "Repeated Greedy", "status": "ok" if baseline_front else "no_feasible",
-             "hv": round(baseline_run["hypervolume"], 4), "runtime": round(baseline_run["runtime"], 2),
+             "hv": round(baseline_exact["corrected_hypervolume"], 4), "runtime": round(baseline_run["runtime"], 2),
              "frontSize": len(baseline_front), "feasible": bool(baseline_run["feasible_run"]),
              "color": "#d97706", "marker": "rhombus"})
 
@@ -224,19 +243,21 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
         "searchSeconds": cfg.search_seconds,
         "stopReason": meta.get("stop_reason"),
         "generations": meta.get("generations_completed", 0),
-        "frontSize": run["archive_size"],
-        "hypervolume": run["hypervolume"],
-        "spacing": run["spacing"] or 0.0,
+        "frontSize": len(primary_archive),
+        "rawFrontSize": run["archive_size"],
+        "frontPrecision": "exact rational dominance among saved alternatives",
+        "hypervolume": primary_exact["corrected_hypervolume"],
+        "spacing": primary_exact["corrected_spacing"] or 0.0,
         "memeticFront": memetic_front,
         **{f"{key}Front": c["front"] for key, c in comparisons.items() if c["status"] != "failed"},
         "baselineFront": baseline_front,
         "algorithmComparison": algorithm_comparison,
         "multiConvergence": multi_convergence,
-        "baselineHypervolume": baseline_run["hypervolume"] if baseline_run else 0.0,
+        "baselineHypervolume": baseline_exact["corrected_hypervolume"] if baseline_exact else 0.0,
         "baselineFeasible": bool(baseline_run and baseline_run["feasible_run"]),
         "baselineRuntime": baseline_run["runtime"] if baseline_run else None,
         "baselineEvaluations": baseline_run["evaluations"] if baseline_run else None,
-        "baselineFrontSize": baseline_run["archive_size"] if baseline_run else 0,
+        "baselineFrontSize": baseline_exact["exact_front_count"] if baseline_exact else 0,
         "normalization": run["normalization"],
         "reference": run["reference"],
         "convergence": [
@@ -247,18 +268,22 @@ def run_optimizer(problem: Problem, cfg: RunConfig, progress: Callable[[dict], N
         "verified": True,
     }
 
-    run_id = run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_id = run_id or datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     saved_to = None
     if save:
         out = Path(os.environ.get("CLOCKWORK_RUNS_DIR", ROOT / "results" / "web")) / run_id
         out.mkdir(parents=True, exist_ok=True)
         (out / "instance.json").write_text(json.dumps(problem_to_dict(problem), indent=2) + "\n")
         (out / "run.json").write_text(json.dumps(run, indent=2, allow_nan=False) + "\n")
+        primary_exact.update(run="run.json", run_sha256=sha256((out / "run.json").read_bytes()).hexdigest())
+        (out / "exact_front.json").write_text(json.dumps(primary_exact, indent=2, allow_nan=False) + "\n")
         if baseline_run:
             (out / "baseline.json").write_text(json.dumps(baseline_run, indent=2, allow_nan=False) + "\n")
+            baseline_exact.update(run="baseline.json", run_sha256=sha256((out / "baseline.json").read_bytes()).hexdigest())
+            (out / "baseline_exact_front.json").write_text(json.dumps(baseline_exact, indent=2, allow_nan=False) + "\n")
         if solutions:
             (out / "compromise_schedule.json").write_text(json.dumps(
-                schedule_to_dict(memetic_res.archive[_compromise([tuple(v) for v in run["objectives"]])]), indent=2) + "\n")
+                schedule_to_dict(primary_archive[_compromise(primary_exact["objectives"])]), indent=2) + "\n")
         saved_to = str(out.relative_to(ROOT) if out.is_relative_to(ROOT) else out).replace("\\", "/")
     stats["savedTo"] = saved_to
 

@@ -90,6 +90,53 @@ def test_weighted_objective_validation():
     assert cp_sat(problem, "gaps", epsilon_objective="room", epsilon_bound_units=-1, time_limit=10).status == "INFEASIBLE"
 
 
+def test_cp_sat_epsilon_never_rounds_up_an_objective_bound():
+    pytest.importorskip("ortools")
+    from timetable.exact import cp_sat
+
+    problem = conflict_instance("room")
+    result = cp_sat(problem, "room", epsilon_objective="gaps", epsilon_bound=0.75)
+    assert result.proven_optimal
+    assert evaluate(problem, result.schedule).objectives[:2] == (0.0, 0.25)
+    assert cp_sat(problem, "room", epsilon_objective="gaps", epsilon_bound=-0.01).status == "INFEASIBLE"
+    for kwargs in ({"epsilon_bound": 1}, {"epsilon_bound_units": 1},
+                   {"epsilon_objective": "room", "epsilon_bound": float("inf")}):
+        with pytest.raises(ValueError):
+            cp_sat(problem, "gaps", **kwargs)
+
+
+def test_cp_epsilon_grid_filters_only_the_two_modeled_objectives(monkeypatch):
+    from types import SimpleNamespace
+    import timetable.evaluation as evaluation_module
+    import timetable.exact as exact_module
+
+    # B improves room but has worse workload than A. f3 must not keep A in
+    # an archive explicitly scoped to the two-objective gaps/room problem.
+    values = {"A": (0.0, 0.4, 0.0), "B": (0.0, 0.2, 1.0)}
+    schedules = iter(("B", "A", "B", "B", "B"))
+    bounds = []
+
+    def solve(_problem, **kwargs):
+        schedule = next(schedules)
+        bounds.append(kwargs)
+        return exact_module.ExactResult(schedule, "OPTIMAL", values[schedule][1], None, 0, kwargs["objective"],
+                                       {"room_scale": 10, "room_units": int(values[schedule][1] * 10)})
+
+    monkeypatch.setattr(exact_module, "cp_sat", solve)
+    monkeypatch.setattr(evaluation_module, "evaluate", lambda _p, s: SimpleNamespace(feasible=True, objectives=values[s]))
+    result = exact_module.epsilon_constraint_cp_sat(conflict_instance("room"), steps=3)
+    assert result.objectives == [values["B"]]
+    assert [row["epsilon_bound_units"] for row in bounds[2:]] == [2, 3, 4]
+
+
+@pytest.mark.parametrize("value", [0, -1, 1.5, True])
+def test_exact_front_rejects_invalid_point_limit(value):
+    from timetable.exact import exact_gaps_room_front
+
+    with pytest.raises(ValueError):
+        exact_gaps_room_front(conflict_instance("room"), max_points=value)
+
+
 def test_exact_gap_study_smoke(tmp_path):
     pytest.importorskip("ortools")
     tool = _load("exact_gap_study")
@@ -205,6 +252,36 @@ def test_itc_inspired_instance_is_reproducible_and_labelled_synthetic():
     assert "not an official ITC" in saved["metadata"]["source"] and "inspired" in saved["name"]
     stored = json.loads((ROOT / "data/itc_inspired/certificates/itc_inspired_01.json").read_text(encoding="utf-8"))
     assert evaluate(problem, schedule_from_dict(stored.get("schedule", stored))).feasible
+
+
+@pytest.mark.parametrize("kwargs", [{"num_curricula": 0}, {"courses_per_curriculum": 1.5},
+                                   {"num_rooms": -1}, {"num_faculty": 1}, {"num_faculty": True}])
+def test_itc_generator_rejects_invalid_dimensions(kwargs):
+    from timetable.itc_inspired import generate_itc_inspired_instance
+
+    with pytest.raises(ValueError):
+        generate_itc_inspired_instance(**kwargs)
+
+
+def test_cp_epsilon_cli_plot_does_not_claim_a_certified_front(monkeypatch, tmp_path):
+    import json
+    from types import SimpleNamespace
+    import timetable.exact as exact_module
+    import timetable.experiments as export_module
+    import timetable.visualization as visualization_module
+    from timetable.cli import main
+    from timetable.model import problem_to_dict
+
+    instance = tmp_path / "instance.json"
+    instance.write_text(json.dumps(problem_to_dict(conflict_instance("room"))))
+    monkeypatch.setattr(exact_module, "epsilon_constraint_cp_sat", lambda *a, **kw: SimpleNamespace(
+        archive=[], objectives=[], runtime=0, evaluated_steps=0, optimal_steps=0, feasible_steps=0,
+        epsilons=[], metadata={}))
+    monkeypatch.setattr(export_module, "export_representatives", lambda *_a, **_kw: None)
+    plots = []
+    monkeypatch.setattr(visualization_module, "plot_fronts", lambda *a, **kw: plots.append(kw))
+    assert main(["solve", str(instance), "--method", "cpsat-eps", "--output", str(tmp_path / "run")]) == 2
+    assert plots and not plots[0].get("certified", False)
 
 
 def test_mcdm_cli_reports_ahp_and_sensitivity(capsys):

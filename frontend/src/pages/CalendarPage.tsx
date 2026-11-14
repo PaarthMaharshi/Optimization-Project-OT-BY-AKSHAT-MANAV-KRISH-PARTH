@@ -6,7 +6,7 @@ type FilterKind = 'mine' | 'group' | 'faculty' | 'room';
 
 export default function CalendarPage() {
   const user = useAuth((s) => s.user)!;
-  const { pub } = usePublished();
+  const { pub, error: publishedError } = usePublished();
   const inst = pub && pub !== 'none' ? pub.instance : null;
   const [monday, setMonday] = useState(() => mondayOf(new Date()));
   const [filter, setFilter] = useState<{ kind: FilterKind; id: string }>(() =>
@@ -29,6 +29,10 @@ export default function CalendarPage() {
   const latest = useRef(0);
   const load = useCallback(() => {
     if (!filter.id) return; // wait until a class / teacher / room is chosen
+    setData(null);
+    setError(null);
+    setSel(null);
+    setSlot(null);
     const q = new URLSearchParams({ start: iso(monday), end: iso(addDays(monday, 6)) });
     q.set(filter.kind === 'mine' ? 'faculty' : filter.kind, filter.id);
     const ticket = ++latest.current; // ignore answers to requests that have been superseded
@@ -40,7 +44,10 @@ export default function CalendarPage() {
       })
       .catch((e: Error) => ticket === latest.current && setError(e.message));
   }, [monday, filter]);
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+    return () => { latest.current += 1; };
+  }, [load]);
 
   const flash = (m: string) => {
     setToast(m);
@@ -61,11 +68,14 @@ export default function CalendarPage() {
   }, [inst]);
 
   if (pub === 'none') return <Empty text="No timetable has been published yet. The administrator publishes one from the Designer." />;
+  if (publishedError) return <Empty text={publishedError} />;
+  if (inst && !filter.id && user.role !== 'admin') return <Empty text="Your account is not linked to a teacher or class. Ask the administrator to link it." />;
   if (error && !data) return <Empty text={error} />;
   if (!data || !inst) return <Empty text="Loading…" />;
 
   const dates = Array.from({ length: days }, (_, i) => iso(addDays(monday, i)));
   const P = data.periods.length;
+  const lunchPeriods = new Set(data.lunchPeriods ?? (data.lunchPeriod == null ? [] : [data.lunchPeriod]));
   const cells = new Map<string, Occurrence[]>();
   for (const o of data.occurrences) {
     const k = `${o.date}|${o.period}`;
@@ -116,7 +126,7 @@ export default function CalendarPage() {
                 key={k}
                 className={filter.kind === k ? 'on' : ''}
                 onClick={() =>
-                  setFilter({ kind: k, id: k === 'group' ? (user.groupId ?? inst.groups[0].id) : k === 'faculty' ? inst.faculty[0].id : inst.rooms[0].id })
+                  setFilter({ kind: k, id: k === 'group' ? (user.groupId ?? inst.groups[0]?.id ?? '') : k === 'faculty' ? inst.faculty[0]?.id ?? '' : inst.rooms[0]?.id ?? '' })
                 }
               >
                 {k === 'group' ? 'Class' : k === 'faculty' ? 'Teacher' : 'Room'}
@@ -124,7 +134,7 @@ export default function CalendarPage() {
             ))}
           </div>
           {filter.kind !== 'mine' && (
-            <select className="input" style={{ width: 'auto' }} value={filter.id} onChange={(e) => setFilter({ ...filter, id: e.target.value })}>
+            <select className="input" aria-label="Calendar entity" style={{ width: 'auto' }} value={filter.id} onChange={(e) => setFilter({ ...filter, id: e.target.value })}>
               {(filter.kind === 'group' ? inst.groups : filter.kind === 'faculty' ? inst.faculty : inst.rooms).map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.name}
@@ -163,9 +173,9 @@ export default function CalendarPage() {
           ))}
           {Array.from({ length: P }, (_, p) => (
             <Row key={p}>
-              <div className={`cal-time ${p === data.lunchPeriod ? 'lunch' : ''}`}>{data.periods[p]}</div>
+              <div className={`cal-time ${lunchPeriods.has(p) ? 'lunch' : ''}`}>{data.periods[p]}</div>
               {dates.map((d) => {
-                if (p === data.lunchPeriod) return <div key={d} className="cal-cell lunch">Lunch</div>;
+                if (lunchPeriods.has(p)) return <div key={d} className="cal-cell lunch">Lunch</div>;
                 const list = cells.get(`${d}|${p}`) ?? [];
                 const clickable = staff && list.length === 0 && inSemester(d) && !data.holidays[d];
                 return (
@@ -194,8 +204,8 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {sel && <LectureDrawer occ={sel} names={names} onClose={() => setSel(null)} onDone={done} periods={data.periods} />}
-      {slot && <AddClassDrawer slot={slot} filter={filter} onClose={() => setSlot(null)} onDone={done} periods={data.periods} />}
+      {sel && <LectureDrawer key={sel.id} occ={sel} names={names} onClose={() => setSel(null)} onDone={done} periods={data.periods} />}
+      {slot && <AddClassDrawer key={`${slot.date}|${slot.period}`} slot={slot} filter={filter} onClose={() => setSlot(null)} onDone={done} periods={data.periods} />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
@@ -329,7 +339,7 @@ function LectureDrawer({ occ, names, onClose, onDone, periods }: { occ: Occurren
             <span className="tiny">No other teacher is free then.</span>
           ) : (
             <div className="row">
-              <select className="input" style={{ width: 'auto' }} value={sub} onChange={(e) => setSub(e.target.value)}>
+              <select className="input" aria-label="Substitute teacher" style={{ width: 'auto' }} value={sub} onChange={(e) => setSub(e.target.value)}>
                 <option value="">Choose a free teacher…</option>
                 {freeTeachers.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -359,6 +369,7 @@ function AddClassDrawer({ slot, filter, onClose, onDone, periods }: { slot: { da
   const [kind, setKind] = useState<'quiz' | 'extra'>('quiz');
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api<{ rooms: { id: string; name: string; capacity: number }[] }>(`/free?date=${slot.date}&period=${slot.period}`)
@@ -378,11 +389,14 @@ function AddClassDrawer({ slot, filter, onClose, onDone, periods }: { slot: { da
 
   const submit = async () => {
     setError(null);
+    setBusy(true);
     try {
       await post('/extra-classes', { offeringId: offering, date: slot.date, period: slot.period, roomId: room, kind, title });
       onDone(`${kind === 'quiz' ? 'Quiz' : 'Extra class'} added; the students were notified.`);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -433,7 +447,7 @@ function AddClassDrawer({ slot, filter, onClose, onDone, periods }: { slot: { da
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === 'quiz' ? 'Quiz 2 – Units 3–4' : 'Revision class'} />
       </label>
       {error && <div className="error-box">{error}</div>}
-      <button className="btn accent" disabled={!offering || !room} onClick={submit}>
+      <button className="btn accent" disabled={!offering || !room || busy} onClick={submit}>
         Add {kind === 'quiz' ? 'quiz' : 'class'}
       </button>
     </aside>

@@ -14,11 +14,11 @@ MOEA/D is run twice, with Tchebycheff and with weighted-sum scalarization, so
 the decomposition question (does the scalarization matter here?) is measured
 rather than asserted.  Either outcome is a valid finding.
 
-The script also counts *unsupported* points.  A point of a front is supported
-when it minimizes some positive weighted sum over that front, i.e. it lies on
-the convex hull facing the ideal point.  Unsupported points are exactly the
-ones a weighted-sum method cannot single out, so the share of them on the
-pooled reference front says how much of the front weighted sums could miss.
+The script also counts points selected by a finite positive-weight grid.
+Selection establishes support on the observed front. Failure to be selected
+does not prove a point unsupported: another positive weight may select it.
+Legacy JSON keys named ``supported`` / ``unsupported`` mean grid-selected /
+grid-unselected, respectively; they do not certify global non-convexity.
 
     python experiments/moead_paired_study.py
     python experiments/moead_paired_study.py --quick     # tiny smoke run
@@ -90,9 +90,10 @@ def simplex_grid(divisions: int) -> list[tuple[float, float, float]]:
 def supported_flags(points: list[tuple[float, ...]], divisions: int = 80) -> list[bool]:
     """Which points minimize some positive weighted sum over ``points``.
 
-    A grid of positive weights is searched, so a point reported as unsupported
-    is unsupported *for every weight on that grid*; a finer grid can only turn
-    an unsupported point into a supported one, never the reverse.
+    A grid of positive weights is searched, so a False flag means unselected
+    on that grid. It is not an unsupportedness proof. Increasing the number
+    of divisions need not retain all former grid weights; only adding weights
+    to an existing grid makes the selected set monotonically larger.
     """
     flags = [False] * len(points)
     if len(points) <= 1:
@@ -218,12 +219,13 @@ def markdown(summary: dict) -> str:
             lines.append(f"| {summary['methods'][a]} vs {summary['methods'][b]} | {p['pairs']} | {p['wins']} | "
                          f"{p['losses']} | {p['ties']} | {p['median_difference']:+.5f} | {p['sign_test_p_two_sided']:.4f} |")
         lines.append("")
-    lines += ["## Supported and unsupported points", "",
+    lines += ["## Finite weight-grid selection", "",
               "For each instance the archives of all methods and seeds are pooled and reduced to their",
-              "non-dominated reference front. A point is *supported* if it minimizes some positive weighted",
-              "sum over that front (weights searched on a regular simplex grid). Unsupported points lie in",
-              "non-convex parts of the front; no weighted sum can single them out.", "",
-              "| Instance | Reference front | Supported | Unsupported | Unsupported reference points contributed by: greedy / memetic / MOEA/D-Tch / MOEA/D-WS |",
+              "observed non-dominated reference front. Positive weights on an 80-division simplex grid",
+              "select some points by weighted-sum minimization. Selection establishes support on that",
+              "observed front; failure on this finite grid does not prove unsupportedness or non-convexity.",
+              "Legacy JSON keys `supported` / `unsupported` mean grid-selected / grid-unselected.", "",
+              "| Instance | Reference front | Grid-selected | Grid-unselected | Grid-unselected reference points contributed by: greedy / memetic / MOEA/D-Tch / MOEA/D-WS |",
               "|---|---:|---:|---:|---|"]
     for name, s in summary["support"].items():
         by = s["by_method"]

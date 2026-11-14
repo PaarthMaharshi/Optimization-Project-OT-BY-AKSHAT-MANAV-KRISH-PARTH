@@ -64,13 +64,12 @@ an explicit `target_events` cannot be combined. Changing `groups` without a
 target recalculates demand from the offering counts and session defaults. Tight
 custom instances may require more construction attempts or resources.
 
-Two optional-configuration limitations remain in the frozen generator. Supply
-`theory_sessions` as a positive JSON integer: the legacy implementation accepts
-`true` as one session instead of rejecting it. When replaying a configuration
-copied from generated metadata, remove the derived `target_events` if
-`theory_sessions` is present; the recorded metadata can contain both, whereas
-input overrides require one. These cases do not affect the published preset
-instances. Preserve the actual input configuration and seed when reproducing.
+`theory_sessions` must be a positive JSON integer; booleans are rejected. New
+generated metadata records a canonical resolved `target_events` configuration,
+so its `config` can be replayed directly. Older custom-instance metadata can
+contain both alternatives: remove `theory_sessions` and retain the resolved
+`target_events` before replaying that legacy configuration. The cleanup preserves
+all stored default instances and certificates byte-for-byte.
 
 For example:
 

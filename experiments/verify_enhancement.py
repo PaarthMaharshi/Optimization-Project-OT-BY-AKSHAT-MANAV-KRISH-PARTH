@@ -19,9 +19,34 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
+def verify_recorded_sources(root, folder, source_files):
+    """Validate measured snapshots; distinguish later extensions from checker drift."""
+    differences = []
+    for name, expected in source_files.items():
+        snapshot = folder / "source_snapshot" / name
+        if not snapshot.is_file() or hashlib.sha256(snapshot.read_bytes()).hexdigest() != expected:
+            raise ValueError(f"Measured source snapshot is missing or corrupted: {name}")
+        live = root / "src/timetable" / name
+        if not live.is_file() or hashlib.sha256(live.read_bytes()).hexdigest() != expected:
+            differences.append(name)
+    # These are the implementations used below to interpret and independently
+    # re-evaluate the saved data. A changed CLI/exact solver does not invalidate
+    # the original experiment, but a changed checker needs its recorded revision.
+    critical = {"model.py", "evaluation.py", "metrics.py"}
+    if critical.intersection(differences):
+        raise ValueError("Validation code differs from the measured snapshot: "
+                         + ", ".join(sorted(critical.intersection(differences)))
+                         + ". Verify with the recorded revision instead.")
+    return {"source_snapshot_hashes_valid": True,
+            "source_snapshot_matches_current": not differences,
+            "current_source_differences": sorted(differences),
+            "validation_code_matches_snapshot": True}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--study", default="enhancement_validation")
+    parser.add_argument("--output", type=Path, help="Write audit evidence separately from historical verification")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     folder = root / "results" / args.study
@@ -37,9 +62,7 @@ def main():
                         expected_identities.add((scenario["size"],instance_seed,solver_seed,method,protocol))
     actual_identities = set()
     initialization_prefixes = {}
-    for name, sha in manifest["source_files"].items():
-        assert hashlib.sha256((folder / "source_snapshot" / name).read_bytes()).hexdigest() == sha
-        assert hashlib.sha256((root / "src/timetable" / name).read_bytes()).hexdigest() == sha
+    provenance = verify_recorded_sources(root, folder, manifest["source_files"])
     problems = {}
     for path in sorted((root / "data" / args.study).glob("*.json")):
         problem = problem_from_dict(json.loads(path.read_text()))
@@ -157,10 +180,12 @@ def main():
     result = {"status": "PASS", "study": args.study, "runs": completed, "expected_runs": expected,
               "certificates": len(problems), "archived_feasible_schedules": archived,
               "excluded_late_evaluations": late, "empty_archives": failures,
-              "source_snapshot_matches_current": True, "all_cutoff_fronts_reconstructed": True,
+              **provenance, "all_cutoff_fronts_reconstructed": True,
               "common_initialization_groups_checked":initialization_groups,
               "workload_integer_relaxation":workload_bounds}
-    (folder / "verification.json").write_text(json.dumps(result, indent=2)+"\n")
+    output = args.output or folder / "verification.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(result, indent=2)+"\n")
     print(json.dumps(result, indent=2))
 
 

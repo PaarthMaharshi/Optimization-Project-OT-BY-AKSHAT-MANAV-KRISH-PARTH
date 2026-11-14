@@ -44,6 +44,12 @@ def _settings(size: str, config: dict[str, Any] | None) -> dict[str, Any]:
     unknown = set(given) - allowed
     if unknown:
         raise ValueError(f"Unknown generator parameters: {sorted(unknown)}")
+    if "theory_sessions" in given and (
+        isinstance(given["theory_sessions"], bool)
+        or not isinstance(given["theory_sessions"], int)
+        or given["theory_sessions"] <= 0
+    ):
+        raise ValueError("theory_sessions must be a positive integer")
     cfg = {**_DEFAULTS, **PRESETS[size], **given}
     if "groups" in given and "target_events" not in given:
         cfg["target_events"] = cfg["groups"] * (
@@ -57,6 +63,9 @@ def _settings(size: str, config: dict[str, Any] | None) -> dict[str, Any]:
             cfg["theory_offerings_per_group"] * given["theory_sessions"]
             + cfg["lab_offerings_per_group"]
         )
+        # Store the resolved demand, so metadata.config can be replayed directly
+        # without passing both mutually exclusive ways to specify that demand.
+        cfg.pop("theory_sessions")
     positive = (
         "groups", "rooms", "faculty", "target_events", "periods_per_day",
         "theory_offerings_per_group", "lab_duration", "max_weekly",

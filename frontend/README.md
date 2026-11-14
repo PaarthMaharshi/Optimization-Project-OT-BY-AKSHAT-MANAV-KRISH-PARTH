@@ -27,3 +27,18 @@ npm run build
 The website gets its timetables from the Python server (`api/server.py`). Vite forwards `/api` requests to
 port 8000; see the project README for how to start both servers. If the server is not running, the website
 falls back to clearly labelled offline demo data in `src/mock/` (not optimizer output). `src/types.ts` matches the JSON the server returns.
+
+## Browser regression checks
+
+With Python Playwright and Chromium available, start the API with a disposable `CLOCKWORK_DB`, then point Vite at it with
+`CLOCKWORK_API=http://127.0.0.1:8000 npm run dev`. From the repository root, run:
+
+```bash
+python frontend/tests/browser_regression.py --web http://127.0.0.1:5173
+python frontend/tests/browser_failure_regression.py --web http://127.0.0.1:5173
+```
+
+The first check exercises real optimisation, exports, publication, accounts and campus flows, and changes the test database.
+The second check uses intercepted responses to cover loading races and server failures. Both use the existing Python
+Playwright installation and system Chromium, with no frontend test framework dependency. Screenshots and results are saved
+under `/tmp/clockwork-browser` by default; pass `--artifacts` to choose another directory.

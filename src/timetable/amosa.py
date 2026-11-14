@@ -1,7 +1,9 @@
-"""Archived Multi-Objective Simulated Annealing (AMOSA).
+"""AMOSA-inspired archived multi-objective simulated annealing.
 
 A trajectory-based metaheuristic for multi-objective optimization that uses a
 cooling schedule and energy differences based on Pareto dominance.
+This implementation uses mean normalized shortfall as its acceptance energy,
+rather than the original AMOSA paper's dominance-volume mechanism.
 
 Key Optimization Techniques (OT) Concepts:
 ------------------------------------------
@@ -80,12 +82,18 @@ def amosa(
         evaluator: Counted objective evaluator.
     """
     validate_problem(problem)
+    if type(population_size) is not int or population_size < 2:
+        raise ValueError("population_size must be an integer >= 2")
     if type(max_evaluations) is not int or max_evaluations < 1:
         raise ValueError("max_evaluations must be a positive integer")
+    if any(type(value) is not int or value < 1 for value in (faculty_every, faculty_nodes)):
+        raise ValueError("faculty_every and faculty_nodes must be positive integers")
     if time_limit is not None and (not isfinite(time_limit) or time_limit <= 0):
         raise ValueError("time_limit must be finite and positive")
-    if t_max <= t_min or t_min <= 0:
-        raise ValueError("Temperatures must satisfy t_max > t_min > 0")
+    if not isfinite(t_max) or not isfinite(t_min) or t_max <= t_min or t_min <= 0:
+        raise ValueError("Temperatures must be finite and satisfy t_max > t_min > 0")
+    if not isfinite(alpha) or not 0 < alpha < 1:
+        raise ValueError("alpha must be finite and in (0, 1)")
 
     evaluator = evaluate if evaluator is None else evaluator
     rng = random.Random(seed)
@@ -178,9 +186,8 @@ def amosa(
     last_archive_size = len(archive)
     while remaining() and current is not None and current.evaluation.feasible:
         step += 1
-        # Adaptive temperature decay: maintains exploratory probability, then anneals
-        frac = min(1.0, calls / max_evaluations)
-        current_temp = max(t_min, t_max * ((t_min / t_max) ** (frac ** 1.25)))
+        # Geometric cooling; alpha controls decay per annealing proposal.
+        current_temp = max(t_min, t_max * alpha ** step)
 
         # Periodic restart from archive point to explore diverse Pareto regions
         if proposals % 25 == 0 and archive:

@@ -88,7 +88,7 @@ const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 /** Admin page: disruptions of the published timetable and minimal-change re-optimisation. */
 export default function Disruptions() {
-  const { pub, reload: reloadPub } = usePublished();
+  const { pub, error: publishedError, reload: reloadPub } = usePublished();
   const [items, setItems] = useState<DisruptionItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -113,12 +113,13 @@ export default function Disruptions() {
           <h1>Disruptions</h1>
           <p>
             When a teacher becomes unavailable, leaves, or a room closes, part of the published timetable breaks. Instead of re-optimising from
-            scratch, which changes almost every class, the optimiser repairs it with the <b>fewest possible changes</b> and shows what each extra
+            scratch, the optimiser searches for a repair with <b>as few changes as possible</b> and shows what each extra
             change would buy in quality (ε-constraint method). Short leave is handled by cover in the Calendar.
           </p>
         </div>
       </div>
       {error && <div className="error-box">{error}</div>}
+      {publishedError && <div className="error-box">{publishedError}</div>}
       {msg && (
         <div className="card" style={{ marginBottom: 16, background: 'var(--sage-soft)' }}>
           {msg}
@@ -129,7 +130,7 @@ export default function Disruptions() {
       <section style={{ marginBottom: 22 }}>
         <h2 style={{ fontSize: 22, marginBottom: 10 }}>Open {open.length ? `(${open.length})` : ''}</h2>
         {items === null && <p className="muted">Loading…</p>}
-        {items !== null && !open.length && <p className="muted">No open disruptions. The published timetable is consistent with every saved constraint.</p>}
+        {items !== null && !open.length && <p className="muted">No open disruptions.</p>}
         <div className="stack" style={{ display: 'grid', gap: 16 }}>
           {open.map((d) => (
             <DisruptionCard
@@ -178,10 +179,13 @@ function DisruptionCard({ d, onDone, onError }: { d: DisruptionItem; onDone: (m:
   const [progress, setProgress] = useState<Progress | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setResult(null);
     if (d.hasResult && !d.resultStale)
       api<{ result: ReoptResult | null }>(`/disruptions/${d.id}`)
-        .then((r) => setResult(r.result))
+        .then((r) => { if (!cancelled) setResult(r.result); })
         .catch(() => undefined);
+    return () => { cancelled = true; };
   }, [d.id, d.hasResult, d.resultStale]);
 
   const run = async () => {
@@ -242,6 +246,7 @@ function DisruptionCard({ d, onDone, onError }: { d: DisruptionItem; onDone: (m:
           </button>
         </div>
       </div>
+      {d.resultStale && !result && !running && <p className="tiny">The published timetable changed. Re-optimise to compute current options.</p>}
       {running && (
         <div style={{ marginTop: 12 }}>
           <span className="tiny">
@@ -264,32 +269,32 @@ function TradeoffChart({ r, selected, onPick }: { r: ReoptResult; selected: stri
   const H = 150;
   const m = { l: 40, r: 10, t: 10, b: 30 };
   const xs = r.options.map((o) => o.changes.total);
-  const ys = r.options.map((o) => o.levelHypervolume);
+  const ys = r.options.map((o) => o.hypervolume);
   const x0 = Math.min(...xs, r.lowerBound);
   const x1 = Math.max(...xs, x0 + 1);
   const y0 = Math.min(...ys) * 0.995;
   const y1 = Math.max(...ys) * 1.005;
   const sx = (v: number) => m.l + ((v - x0) / (x1 - x0)) * (W - m.l - m.r);
   const sy = (v: number) => H - m.b - ((v - y0) / (y1 - y0 || 1)) * (H - m.t - m.b);
-  const pts = r.options.map((o) => ({ o, x: sx(o.changes.total), y: sy(o.levelHypervolume) })).sort((a, b) => a.x - b.x);
+  const pts = r.options.map((o) => ({ o, x: sx(o.changes.total), y: sy(o.hypervolume) })).sort((a, b) => a.x - b.x);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 420 }} role="img" aria-label="Changes against quality">
       <rect x={m.l} y={m.t} width={W - m.l - m.r} height={H - m.t - m.b} fill="#fbf7ef" rx="6" />
       <line x1={sx(r.lowerBound)} x2={sx(r.lowerBound)} y1={m.t} y2={H - m.b} stroke="#c8553d" strokeDasharray="3 3" />
       <text x={sx(r.lowerBound) + 3} y={m.t + 10} fontSize="9" fill="#c8553d">
-        minimum
+        lower bound
       </text>
       <path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ')} fill="none" stroke="var(--accent)" strokeWidth="2" />
       {pts.map((p) => (
         <circle key={p.o.key} cx={p.x} cy={p.y} r={p.o.key === selected ? 6 : 4} fill={p.o.key === selected ? 'var(--ink)' : 'var(--accent)'} style={{ cursor: 'pointer' }} onClick={() => onPick(p.o.key)}>
-          <title>{`${p.o.label}: ${p.o.changes.total} changes, HV ${p.o.levelHypervolume.toFixed(4)}`}</title>
+          <title>{`${p.o.label}: ${p.o.changes.total} changes, timetable HV ${p.o.hypervolume.toFixed(4)}`}</title>
         </circle>
       ))}
       <text x={(m.l + W - m.r) / 2} y={H - 6} fontSize="10" fill="#6b655c" textAnchor="middle">
         changed sessions
       </text>
       <text transform={`translate(11 ${(m.t + H - m.b) / 2}) rotate(-90)`} fontSize="10" fill="#6b655c" textAnchor="middle">
-        quality (hypervolume)
+        timetable hypervolume
       </text>
       <text x={m.l} y={H - m.b + 12} fontSize="9" fill="#a39b8e">
         {x0}
@@ -318,7 +323,7 @@ function Results({ d, r, onDone, onError }: { d: DisruptionItem; r: ReoptResult;
   }, [inst]);
   const size = aspects.find((a) => a.id === theme.aspect) ?? aspects[0];
   const slot = (s: Slot) => `${days[s.day]} ${periods[s.period]} · ${name[s.roomId] ?? s.roomId} · ${name[s.facultyId] ?? s.facultyId}`;
-  const best = r.options.reduce((a, b) => (b.levelHypervolume > a.levelHypervolume ? b : a));
+  const best = r.options.reduce((a, b) => (b.hypervolume > a.hypervolume ? b : a));
 
   const publish = async () => {
     if (!confirm(`Publish "${opt.label}"? ${opt.changes.total} session(s) change; affected teachers and classes are notified.`)) return;
@@ -342,12 +347,12 @@ function Results({ d, r, onDone, onError }: { d: DisruptionItem; r: ReoptResult;
             {r.provenMinimal ? (
               <span className="chip sage">✓ the repair reaches this minimum (proven)</span>
             ) : (
-              <span className="chip">repair uses a few more changes than the bound</span>
+              <span className="chip">minimum not proven; repair exceeds the lower bound</span>
             )}
           </p>
           <p className="tiny">
             Before the disruption: gaps {r.originalObjectives.f1.toFixed(1)}, room waste {pct(r.originalObjectives.f2)}, imbalance{' '}
-            {r.originalObjectives.f3.toFixed(3)}. Re-optimising from scratch would change almost all {r.sessions} sessions.
+            {r.originalObjectives.f3.toFixed(3)}.
             {r.constraintsApplied.length > 0 && ` Saved availability of ${r.constraintsApplied.length} teacher(s) is respected.`} Computed in{' '}
             {r.runtime.toFixed(1)}s.
           </p>
@@ -435,7 +440,7 @@ function Results({ d, r, onDone, onError }: { d: DisruptionItem; r: ReoptResult;
             </button>
           ))}
         </div>
-        <select className="input" style={{ width: 'auto' }} value={view.entityId} onChange={(e) => setView({ ...view, entityId: e.target.value })}>
+        <select className="input" aria-label="Preview entity" style={{ width: 'auto' }} value={view.entityId} onChange={(e) => setView({ ...view, entityId: e.target.value })}>
           {(view.kind === 'group' ? inst.groups : view.kind === 'faculty' ? inst.faculty : inst.rooms).map((x) => (
             <option key={x.id} value={x.id}>
               {x.name}

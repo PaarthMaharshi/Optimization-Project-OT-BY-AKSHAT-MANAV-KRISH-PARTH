@@ -168,3 +168,41 @@ def test_reoptimize_is_deterministic():
     b = epsilon_reoptimize(Pd, S0, d, epsilons=[0, 50], budget=15, population=4, seed=5)
     assert [lv.objectives for lv in a.levels] == [lv.objectives for lv in b.levels]
     assert not a.levels[0].feasible or a.repair.changes == 0  # eps=0 is infeasible after a real disruption
+
+
+def test_warm_start_retains_an_archive_larger_than_the_population(monkeypatch):
+    """A later epsilon must keep every earlier point, even with a small population."""
+    from itertools import chain, repeat
+    import timetable.disruption as module
+    from timetable.disruption import RepairResult
+    from timetable.evaluation import Evaluation
+    from timetable.model import Faculty, Group, Offering, Placement, Problem, Room, Schedule
+
+    problem = Problem("archive carry", ("Mon",), 5, (), (Group("G", 10),),
+                      (Room("R", 10, "classroom"),), (Faculty("F", 5, 5),),
+                      (Offering("O", ("G",), ("F",), 1, 1, "classroom"),))
+    schedules = [Schedule((Placement(i, "R"),), ("F",)) for i in range(5)]
+    sequence = chain(schedules[1:], repeat(schedules[0]))
+    calls = []
+
+    def assess(_problem, schedule):
+        calls.append(schedule)
+        i = schedules.index(schedule)
+        return Evaluation((float(i), (5 - i) / 10, 0.0), 0, {}, {})
+
+    monkeypatch.setattr(module, "evaluate", assess)
+    monkeypatch.setattr(module.FeasibleNeighborhood, "propose", lambda *_args: next(sequence))
+    result = epsilon_reoptimize(problem, schedules[0], epsilons=[1, 2], budget=5, population=2,
+                                restore_rate=0, repair=RepairResult(schedules[0], [], 0, "unchanged", 0))
+    assert len(result.levels[0].archive) == 5
+    assert result.levels[1].objectives == result.levels[0].objectives
+    assert result.levels[1].hypervolume == result.levels[0].hypervolume
+    assert len(calls) == sum(level.evaluations for level in result.levels) == 5
+
+
+@pytest.mark.parametrize("kwargs", [{"budget": 1.5}, {"population": 2.5}, {"epsilons": [0.5]},
+                                   {"epsilons": [-1]}, {"epsilons": [True]}])
+def test_reoptimization_rejects_noninteger_budgets_and_epsilons(kwargs):
+    problem, original = base()
+    with pytest.raises(ValueError):
+        epsilon_reoptimize(problem, original, **kwargs)

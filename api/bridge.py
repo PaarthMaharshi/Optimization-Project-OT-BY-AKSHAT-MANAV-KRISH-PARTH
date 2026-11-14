@@ -119,6 +119,8 @@ def problem_from_any(data: dict) -> Problem:
     if not isinstance(data, dict):
         raise ValueError("An instance must be a JSON object")
     data = data.get("instance", data) if "grid" not in data and "periods_per_day" not in data else data
+    if not isinstance(data, dict):
+        raise ValueError("An instance must be a JSON object")
     if "grid" in data:
         return web_to_problem(data)
     if "periods_per_day" in data:
@@ -201,7 +203,14 @@ def web_to_problem(inst: dict) -> Problem:
     rooms = tuple(Room(str(r["id"]), int(r["capacity"]), room_kind(r), _int_list(r.get("unavailable"), total))
                   for r in inst["rooms"])
     events_by_offering: dict[str, list[dict]] = {}
+    offering_ids = {o["id"] for o in inst["offerings"]}
+    supplied_ids = set()
     for e in inst.get("events") or []:
+        if not isinstance(e["id"], str) or not e["id"] or e["id"] in supplied_ids:
+            raise ValueError("Event IDs must be nonempty and unique")
+        if e["offeringId"] not in offering_ids:
+            raise ValueError(f"Unknown offering {e['offeringId']!r} for event {e['id']!r}")
+        supplied_ids.add(e["id"])
         events_by_offering.setdefault(e["offeringId"], []).append(e)
     offerings, event_ids, offering_labels = [], [], {}
     for o in inst["offerings"]:
@@ -222,6 +231,8 @@ def web_to_problem(inst: dict) -> Problem:
         offerings.append(Offering(oid, tuple(o["groupIds"]), tuple(o["eligibleFaculty"]), sessions, duration, room, distinct))
         event_ids += [str(e["id"]) for e in evs] or [f"{oid}:{i + 1}" for i in range(sessions)]
         offering_labels[oid] = {"subject": o.get("subject", oid), "code": o.get("code", oid), "type": kind}
+    if len(set(event_ids)) != len(event_ids):
+        raise ValueError("Event IDs must be unique")
     problem = Problem(
         name=str(inst.get("name") or "Website instance"), days=days, periods_per_day=P, lunch_periods=tuple(lunch),
         groups=groups, rooms=rooms, faculty=faculty, offerings=tuple(offerings),
@@ -294,12 +305,24 @@ def solution_to_schedule(problem: Problem, solution: dict) -> Schedule:
     index = {eid: i for i, eid in enumerate(_event_ids(problem))}
     P = problem.periods_per_day
     placements: list[Placement | None] = [None] * len(problem.events)
-    for a in solution.get("assignments", []):
+    assignments = solution.get("assignments", [])
+    if not isinstance(assignments, list) or any(not isinstance(a, dict) for a in assignments):
+        raise ValueError("Timetable assignments must be a list of objects")
+    for a in assignments:
         i = index.get(a.get("eventId"))
         if i is None:
             raise ValueError(f"Unknown event {a.get('eventId')!r} in the timetable")
-        placements[i] = Placement(int(a["day"]) * P + int(a["period"]), str(a["roomId"]))
+        if placements[i] is not None:
+            raise ValueError(f"Event {a['eventId']!r} is assigned more than once")
+        day, period = a["day"], a["period"]
+        if type(day) is not int or not 0 <= day < len(problem.days):
+            raise ValueError("Assignment day must be an integer within the timetable grid")
+        if type(period) is not int or not 0 <= period < P:
+            raise ValueError("Assignment period must be an integer within the timetable grid")
+        placements[i] = Placement(day * P + period, str(a["roomId"]))
     faculty_of = solution.get("facultyOf", {})
+    if not isinstance(faculty_of, dict):
+        raise ValueError("Timetable facultyOf must be an object")
     teachers = tuple(str(faculty_of.get(o.id, "")) for o in problem.offerings)
     return Schedule(tuple(placements), teachers)
 

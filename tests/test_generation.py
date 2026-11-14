@@ -1,6 +1,8 @@
 """Certificates validate generated data independently of optimization success."""
 
 from dataclasses import replace
+import json
+from pathlib import Path
 
 import pytest
 
@@ -92,3 +94,30 @@ def test_invalid_or_obviously_impossible_generator_settings(config):
 def test_unknown_preset_rejected():
     with pytest.raises(ValueError, match="Unknown size"):
         generate_instance("enormous", 0)
+
+
+@pytest.mark.parametrize("theory_sessions", [True, False, 0, -1, 2.5, "2", None, [], float("nan"), float("inf")])
+def test_theory_sessions_requires_a_positive_nonboolean_integer(theory_sessions):
+    with pytest.raises(ValueError, match="theory_sessions must be a positive integer"):
+        generate_instance("small", 0, {"theory_sessions": theory_sessions})
+
+
+def test_theory_session_config_resolves_to_replayable_metadata():
+    config = {"theory_sessions": 2}
+    problem, certificate = generate_instance("small", 7, config)
+    resolved = problem.metadata["config"]
+    assert "theory_sessions" not in resolved
+    assert resolved["target_events"] == 28
+    assert config == {"theory_sessions": 2}
+    replayed, replayed_certificate = generate_instance("small", 7, resolved)
+    assert problem_to_dict(replayed) == problem_to_dict(problem)
+    assert schedule_to_dict(replayed_certificate) == schedule_to_dict(certificate)
+
+
+@pytest.mark.parametrize("size,seed", [("small", 10), ("medium", 20), ("large", 10)])
+def test_default_presets_still_reproduce_saved_benchmark_data(size, seed):
+    directory = Path(__file__).resolve().parents[1] / "data" / "benchmark"
+    name = f"{size}_{seed}.json"
+    problem, certificate = generate_instance(size, seed)
+    assert json.dumps(problem_to_dict(problem), indent=2, allow_nan=False) + "\n" == (directory / name).read_text()
+    assert json.dumps(schedule_to_dict(certificate), indent=2, allow_nan=False) + "\n" == (directory / "certificates" / name).read_text()

@@ -24,7 +24,10 @@ ACTIVE = ("scheduled", "substituted")
 
 
 def parse_day(s: str) -> date:
-    return date.fromisoformat(s)
+    d = date.fromisoformat(s)
+    if d.isoformat() != s:
+        raise ValueError("Use a YYYY-MM-DD date")
+    return d
 
 
 def daterange(a: date, b: date):
@@ -119,7 +122,10 @@ class Calendar:
                     occ.update(status="cancelled", reason=f"Online assessment: {oa['title']}")
                 elif (ev["id"], ds) in self.subs:
                     s = self.subs[(ev["id"], ds)]
-                    occ.update(status="substituted", facultyId=s["faculty_id"], reason=f"Covered by {self.faculty_name(s['faculty_id'])}")
+                    if self.on_leave(s["faculty_id"], ds):
+                        occ.update(status="needs_cover", facultyId=s["faculty_id"], coverOpen=True, reason="Substitute teacher on leave")
+                    else:
+                        occ.update(status="substituted", facultyId=s["faculty_id"], reason=f"Covered by {self.faculty_name(s['faculty_id'])}")
                 elif (ev["id"], ds) in self.cancel:
                     c = self.cancel[(ev["id"], ds)]
                     occ.update(status="needs_cover", coverOpen=True, reason=c["reason"] or "Cancelled by the teacher")
@@ -130,12 +136,23 @@ class Calendar:
                 if x["day"] != ds:
                     continue
                 off = self.offerings.get(x["offering_id"], {"code": x["offering_id"], "subject": "", "groupIds": []})
-                out.append({
+                done = self.syllabus.get(x["offering_id"])
+                if done and ds > done:
+                    continue
+                occ = {
                     "id": f"extra-{x['id']}", "kind": x["kind"], "extraId": x["id"], "eventId": None, "offeringId": x["offering_id"],
                     "code": off["code"], "subject": x["title"] or off["subject"], "date": ds, "day": di, "period": x["period"],
                     "length": 1, "roomId": x["room_id"], "groupIds": off["groupIds"], "facultyId": x["faculty_id"],
                     "originalFacultyId": x["faculty_id"], "status": "scheduled", "reason": x["title"], "coverOpen": False,
-                })
+                }
+                oa = self._assessment(off["groupIds"], ds, x["period"], x["period"])
+                if ds in self.holidays:
+                    occ.update(status="cancelled", reason=f"Holiday: {self.holidays[ds]}")
+                elif oa:
+                    occ.update(status="cancelled", reason=f"Online assessment: {oa['title']}")
+                elif self.on_leave(x["faculty_id"], ds):
+                    occ.update(status="cancelled", reason="Teacher on leave")
+                out.append(occ)
         if faculty_id:
             out = [o for o in out if faculty_id in (o["facultyId"], o["originalFacultyId"])]
         if group_id:
@@ -174,7 +191,7 @@ class Calendar:
         return {"teachers": teachers, "groups": groups, "rooms": rooms}
 
     def teacher_conflict(self, faculty_id: str, ds: str, p0: int, length: int, ignore_id: str | None = None) -> str | None:
-        """Why this teacher cannot teach at (ds, p0..): clash, leave or a weekly unavailable slot; None if free."""
+        """Why this teacher cannot teach here: clash, leave, availability or teaching load; None if free."""
         b = self.busy(ds, p0, length, ignore_id)
         if faculty_id in b["teachers"]:
             return f"{self.faculty_name(faculty_id)} already teaches {b['teachers'][faculty_id]} then."
@@ -185,4 +202,41 @@ class Calendar:
         for p in range(p0, p0 + length):
             if di is not None and di * self.P + p in blocked:
                 return f"{self.faculty_name(faculty_id)} is marked unavailable at that time."
+        max_daily = self.constraints.get(faculty_id, {}).get("max_daily") or self.faculty.get(faculty_id, {}).get("maxDaily")
+        if max_daily is not None:
+            d = parse_day(ds)
+            load = sum(o["length"] for o in self.occurrences(d, d)
+                       if o["id"] != ignore_id and o["status"] in ACTIVE and o["facultyId"] == faculty_id)
+            if load + length > max_daily:
+                return f"{self.faculty_name(faculty_id)} would exceed their daily limit of {max_daily} teaching periods."
+        max_weekly = self.faculty.get(faculty_id, {}).get("maxWeekly")
+        if max_weekly is not None:
+            d = parse_day(ds)
+            monday = d - timedelta(days=d.weekday())
+            load = sum(o["length"] for o in self.occurrences(monday, monday + timedelta(days=6))
+                       if o["id"] != ignore_id and o["status"] in ACTIVE and o["facultyId"] == faculty_id)
+            if load + length > max_weekly:
+                return f"{self.faculty_name(faculty_id)} would exceed their weekly limit of {max_weekly} teaching periods."
         return None
+
+    def room_conflict(self, room_id: str, ds: str, p0: int, length: int, ignore_id: str | None = None) -> str | None:
+        room = self.rooms.get(room_id)
+        if not room:
+            return "Unknown room."
+        occupied = self.busy(ds, p0, length, ignore_id)["rooms"]
+        if room_id in occupied:
+            return f"{room.get('name', room_id)} is taken by {occupied[room_id]}."
+        di = self.day_index(parse_day(ds))
+        if di is not None and any(di * self.P + p in room.get("unavailable", []) for p in range(p0, p0 + length)):
+            return f"{room.get('name', room_id)} is unavailable at that time."
+        return None
+
+    def occurrence_conflict(self, occ: dict, faculty_id: str | None = None) -> str | None:
+        """Check all resources before a lecture is restored or covered in a vacated slot."""
+        ds, p0, length, ignore = occ["date"], occ["period"], occ["length"], occ["id"]
+        busy = self.busy(ds, p0, length, ignore)
+        for group in occ["groupIds"]:
+            if group in busy["groups"]:
+                return f"The students already have {busy['groups'][group]} then."
+        return (self.room_conflict(occ["roomId"], ds, p0, length, ignore)
+                or self.teacher_conflict(faculty_id or occ["facultyId"], ds, p0, length, ignore))

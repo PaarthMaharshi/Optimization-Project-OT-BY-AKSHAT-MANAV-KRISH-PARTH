@@ -1,5 +1,9 @@
 # Final technical audit
 
+This is the historical audit of revision `3ca0514`. For the current merged
+project and closure of the low-priority items below, see
+[the merged final audit](merged_final_audit.md).
+
 The audit started from published revision `3ca05148d1245e08575d9e2b7499e0d825d802af`.
 It covers installation, code, mathematical constraints, experimental evidence,
 public commands, reproducibility and submission artifacts. The 19 package

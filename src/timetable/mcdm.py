@@ -52,6 +52,18 @@ class TopsisRanking:
     distance_nadir: float
 
 
+def _normalized_weights(weights: Sequence[float]) -> tuple[float, float, float]:
+    if len(weights) != 3 or any(not math.isfinite(w) or w < 0 for w in weights):
+        raise ValueError("weights must be three finite nonnegative numbers with a positive sum")
+    largest = max(weights)
+    if largest <= 0:
+        raise ValueError("weights must be three finite nonnegative numbers with a positive sum")
+    # Scaling first also handles finite weights whose unscaled sum overflows.
+    scaled = [w / largest for w in weights]
+    total = sum(scaled)
+    return tuple(w / total for w in scaled)
+
+
 def topsis(
     objectives: Sequence[tuple[float, float, float]],
     weights: Sequence[float] = (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0),
@@ -70,29 +82,28 @@ def topsis(
     Returns:
         List of TopsisRanking dataclasses sorted from best (rank 1) to worst.
     """
+    w_norm = _normalized_weights(weights)
+    if any(len(row) != 3 or any(not math.isfinite(x) for x in row) for row in objectives):
+        raise ValueError("every alternative needs three finite objective values")
     if not objectives:
         return []
-    if len(weights) != 3:
-        raise ValueError("weights must be a 3-element sequence for 3 objectives")
-    weight_sum = sum(weights)
-    if weight_sum <= 0:
-        raise ValueError("Sum of weights must be positive")
-    w_norm = [w / weight_sum for w in weights]
 
     m = len(objectives)
     n = 3
 
     # Step 1: Vector Normalization
-    col_norms = []
+    normalized_columns = []
     for j in range(n):
-        sum_sq = sum(objectives[i][j] ** 2 for i in range(m))
-        col_norms.append(math.sqrt(sum_sq) if sum_sq > 0 else 1.0)
+        largest = max(abs(objectives[i][j]) for i in range(m)) or 1.0
+        column = [objectives[i][j] / largest for i in range(m)]
+        norm = math.hypot(*column) or 1.0
+        normalized_columns.append([x / norm for x in column])
 
     # Step 2: Weighted Normalized Decision Matrix
     # V[i][j] = w_norm[j] * (X[i][j] / col_norms[j])
     v = []
     for i in range(m):
-        row = [w_norm[j] * (objectives[i][j] / col_norms[j]) for j in range(n)]
+        row = [w_norm[j] * normalized_columns[j][i] for j in range(n)]
         v.append(row)
 
     # Step 3: Determine Ideal (PIS / A+) and Anti-Ideal (NIS / A-) Solutions
@@ -195,24 +206,34 @@ def ahp_weights(matrix: Sequence[Sequence[float]]) -> AhpResult:
     n = len(matrix)
     if not 2 <= n <= len(_RANDOM_INDEX) or any(len(row) != n for row in matrix):
         raise ValueError("AHP needs a square comparison matrix of order 2 to 10")
+    if any(not math.isfinite(value) or value <= 0 for row in matrix for value in row):
+        raise ValueError("comparison judgements must be positive and finite")
     for i in range(n):
         for j in range(n):
             value = matrix[i][j]
-            if not math.isfinite(value) or value <= 0:
-                raise ValueError("comparison judgements must be positive and finite")
             if abs(value * matrix[j][i] - 1.0) > 1e-6:
                 raise ValueError("comparison matrix must be reciprocal: a[j][i] = 1 / a[i][j]")
+    # A common scale leaves eigenvectors unchanged and prevents overflow in
+    # matrix-vector products for large, but finite, reciprocal judgements.
+    largest = max(value for row in matrix for value in row)
+    scaled = [[value / largest for value in row] for row in matrix]
     vector = [1.0 / n] * n
-    for _ in range(200):
-        product = [sum(matrix[i][j] * vector[j] for j in range(n)) for i in range(n)]
+    for _ in range(10_000):
+        product = [sum(scaled[i][j] * vector[j] for j in range(n)) for i in range(n)]
         total = sum(product)
+        if total <= 0 or any(value <= 0 for value in product):
+            raise ValueError("comparison matrix is too ill-conditioned for stable AHP weights")
         updated = [value / total for value in product]
         change = max(abs(a - b) for a, b in zip(updated, vector))
         vector = updated
         if change < 1e-13:
             break
-    product = [sum(matrix[i][j] * vector[j] for j in range(n)) for i in range(n)]
-    lambda_max = sum(product[i] / vector[i] for i in range(n)) / n
+    else:
+        raise ValueError("AHP eigenvector iteration did not converge")
+    ratios = [sum(scaled[i][j] * vector[j] for j in range(n)) / vector[i] for i in range(n)]
+    lambda_max = (sum(ratios) / n) * largest
+    if not math.isfinite(lambda_max):
+        raise ValueError("comparison matrix is too ill-conditioned for stable AHP weights")
     ci = max(0.0, (lambda_max - n) / (n - 1))
     ri = _RANDOM_INDEX[n - 1]
     return AhpResult(tuple(vector), lambda_max, ci, ci / ri if ri > 0 else 0.0)
@@ -225,8 +246,8 @@ def ahp_from_judgements(gaps_vs_room: float, gaps_vs_workload: float, room_vs_wo
     important, 9 = extremely); below 1 favours the second (1/3, ..., 1/9).
     """
     a, b, c = float(gaps_vs_room), float(gaps_vs_workload), float(room_vs_workload)
-    if min(a, b, c) <= 0:
-        raise ValueError("comparison judgements must be positive")
+    if any(not math.isfinite(x) or x <= 0 for x in (a, b, c)):
+        raise ValueError("comparison judgements must be positive and finite")
     return ahp_weights(((1.0, a, b), (1.0 / a, 1.0, c), (1.0 / b, 1.0 / c, 1.0)))
 
 
@@ -254,19 +275,17 @@ def weight_sensitivity(
     * ``sweeps``: one weight at a time is moved from 0 to 1 while the other
       two keep their base ratio; each change of the top choice is listed with
       the interval of the swept weight in which it happens.
-    * ``stability``: the smallest single-weight change (in either direction)
+    * ``stability``: the smallest sampled single-weight change (in either direction)
       that makes the base recommendation lose first place; ``None`` means the
       recommendation never changes along any of the three sweeps.
     """
+    base = _normalized_weights(base_weights)
+    if (type(divisions) is not int or type(sweep_steps) is not int
+            or divisions < 2 or sweep_steps < 2):
+        raise ValueError("divisions and sweep_steps must be integers of at least 2")
     if not objectives:
-        return {"base_weights": list(base_weights), "base_choice": None, "weight_space": [], "sweeps": [],
+        return {"base_weights": list(base), "base_choice": None, "weight_space": [], "sweeps": [],
                 "stability": None, "grid_points": 0}
-    if len(base_weights) != 3 or min(base_weights) < 0 or sum(base_weights) <= 0:
-        raise ValueError("base_weights must be three nonnegative numbers with a positive sum")
-    if divisions < 2 or sweep_steps < 2:
-        raise ValueError("divisions and sweep_steps must be at least 2")
-    total = sum(base_weights)
-    base = tuple(w / total for w in base_weights)
     base_choice = _top(objectives, base)
 
     counts: dict[int, int] = {}
@@ -274,9 +293,9 @@ def weight_sensitivity(
     for i in range(divisions + 1):
         for j in range(divisions + 1 - i):
             k = divisions - i - j
-            # Avoid the all-zero-weight corner cases of a criterion by keeping every weight strictly positive.
-            weights = tuple((x + 1e-9) / divisions for x in (i, j, k))
-            counts[_top(objectives, weights)] = counts.get(_top(objectives, weights), 0) + 1
+            weights = tuple(x / divisions for x in (i, j, k))
+            choice = _top(objectives, weights)
+            counts[choice] = counts.get(choice, 0) + 1
             grid_points += 1
     weight_space = [{"index": index, "objectives": list(objectives[index]), "share": count / grid_points}
                     for index, count in sorted(counts.items(), key=lambda item: -item[1])]
@@ -294,7 +313,6 @@ def weight_sensitivity(
             weights[axis] = value
             for k, share in zip([k for k in range(3) if k != axis], others):
                 weights[k] = (1.0 - value) * (share / rest if rest > 0 else 0.5)
-            weights = [w + 1e-9 for w in weights]
             path.append((value, _top(objectives, weights)))
         switches = [{"between": [path[s - 1][0], path[s][0]], "from": path[s - 1][1], "to": path[s][1]}
                     for s in range(1, len(path)) if path[s][1] != path[s - 1][1]]
@@ -329,17 +347,19 @@ def recommend(
     objectives = [tuple(float(x) for x in v) for v in objectives]
     if any(len(v) != 3 for v in objectives):
         raise ValueError("every alternative needs three objective values")
+    if ahp is not None and len(ahp) != 3:
+        raise ValueError("ahp must contain three pairwise judgements")
     ahp_result = ahp_from_judgements(*ahp) if ahp is not None else None
     chosen = ahp_result.weights if ahp_result else tuple(weights) if weights is not None else STAKEHOLDER_PROFILES["balanced"]
+    chosen = _normalized_weights(chosen)
     ranking = topsis(objectives, chosen)
-    total = sum(chosen)
     profiles = {}
     for name, profile in STAKEHOLDER_PROFILES.items():
         top = topsis(objectives, profile)
         profiles[name] = {"weights": list(profile), "index": top[0].solution_index if top else None,
                           "score": top[0].score if top else None}
     return {
-        "weights": [w / total for w in chosen],
+        "weights": list(chosen),
         "weightSource": "ahp" if ahp_result else "weights" if weights is not None else "balanced",
         "ahp": None if ahp_result is None else {
             "weights": list(ahp_result.weights), "lambdaMax": ahp_result.lambda_max,

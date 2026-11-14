@@ -10,6 +10,7 @@ const authHeader = (): Record<string, string> => {
 const BASE = '/api';
 
 async function json<T>(res: Response): Promise<T> {
+  if (res.status === 401 && useAuth.getState().token) useAuth.getState().logout();
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try {

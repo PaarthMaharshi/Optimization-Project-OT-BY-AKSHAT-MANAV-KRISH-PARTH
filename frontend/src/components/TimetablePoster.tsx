@@ -49,8 +49,12 @@ export function blocksForView(instance: Instance, solution: Solution, view: { ki
     const hit =
       view.kind === 'group' ? off.groupIds.includes(view.entityId) : view.kind === 'faculty' ? fac === view.entityId : a.roomId === view.entityId;
     if (!hit) continue;
-    const start = periods[a.period].split('-')[0].trim();
-    const end = periods[a.period + ev.length - 1].split('-')[1].trim();
+    // Imported grids may use labels such as “Period 1” instead of clock ranges.
+    const first = periods[a.period];
+    const last = periods[a.period + ev.length - 1];
+    const start = first.split(/\s*[-–—]\s*/)[0].trim();
+    const endParts = last.split(/\s*[-–—]\s*/);
+    const end = endParts[endParts.length - 1].trim();
     out.push({
       eventId: ev.id,
       day: a.day,
@@ -62,7 +66,7 @@ export function blocksForView(instance: Instance, solution: Solution, view: { ki
       room: instance.rooms.find((r) => r.id === a.roomId)?.name ?? a.roomId,
       groups: off.groupIds.map((g) => instance.groups.find((x) => x.id === g)?.name ?? g).join(', '),
       colorIndex: subjectOrder.indexOf(off.code),
-      time: `${start} - ${end}`,
+      time: first === last && !/[-–—]/.test(first) ? first : `${start} - ${end}`,
     });
   }
   return out;
@@ -81,6 +85,7 @@ const TimetablePoster = forwardRef<HTMLDivElement, Props>(function TimetablePost
   const design = designs.find((d) => d.id === theme.designId) ?? designs[0];
   const size = aspects.find((a) => a.id === theme.aspect) ?? aspects[0];
   const { days, periods, lunchPeriod } = instance.grid;
+  const lunchPeriods = new Set((instance.grid.lunchPeriods ?? [lunchPeriod]).filter((p) => p >= 0 && p < periods.length));
   const blocks = useMemo(() => blocksForView(instance, solution, view), [instance, solution, view]);
 
   const ink = inkOn(palette.bg);
@@ -177,7 +182,7 @@ const TimetablePoster = forwardRef<HTMLDivElement, Props>(function TimetablePost
           {(design.emptyCells === 'grid' || design.emptyCells === 'breaks') &&
             days.flatMap((_, d) =>
               periods.map((__, p) =>
-                p === lunchPeriod || occupied.has(`${d}-${p}`) ? null : (
+                lunchPeriods.has(p) || occupied.has(`${d}-${p}`) ? null : (
                   <div key={`e${d}-${p}`} className="tt-empty" style={{ gridColumn: col(d), gridRow: row(p) }}>
                     {design.emptyCells === 'breaks' && <span>free</span>}
                   </div>
@@ -185,9 +190,11 @@ const TimetablePoster = forwardRef<HTMLDivElement, Props>(function TimetablePost
               ),
             )}
 
-          <div className="tt-lunch" style={{ gridColumn: `${timeCol ? 2 : 1} / -1`, gridRow: row(lunchPeriod) }}>
-            <span>Lunch Break</span>
-          </div>
+          {[...lunchPeriods].map((p) => (
+            <div key={p} className="tt-lunch" style={{ gridColumn: `${timeCol ? 2 : 1} / -1`, gridRow: row(p) }}>
+              <span>Lunch Break</span>
+            </div>
+          ))}
 
           {blocks.map((b) => {
             const bg = subjectColor(palette, b.colorIndex);

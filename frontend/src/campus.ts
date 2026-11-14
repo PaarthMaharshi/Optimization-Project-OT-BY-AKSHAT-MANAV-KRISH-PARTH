@@ -35,6 +35,7 @@ export interface CalendarResponse {
   days: string[];
   periods: string[];
   lunchPeriod: number | null;
+  lunchPeriods?: number[];
 }
 
 export interface Published {
@@ -50,6 +51,7 @@ export function usePublished() {
   const [pub, setPub] = useState<Published | null | 'none'>(null);
   const [error, setError] = useState<string | null>(null);
   const reload = useCallback(() => {
+    setError(null);
     api<Published>('/timetable')
       .then(setPub)
       .catch((e: Error) => (e.message.includes('published') ? setPub('none') : setError(e.message)));

@@ -2,7 +2,7 @@
 
 A tested Python system for assigning weekly college sessions to time blocks, compatible rooms and eligible faculty, with explicit hard constraints and three quality objectives.
 
-**Pre-freeze audit (2026-11-14):** 267 tests pass in the working tree and in a fresh clone, and the website passes 61/61 end-to-end checks ([details](docs/freeze_audit.md)). **Earlier final audit:** 209 tests pass. Clean installation, all three CLI problem sizes, saved measurements, report and slides were checked. The [audit report](docs/final_audit.md) includes an exact-arithmetic correction for reported fronts; printed hypervolume comparisons are unchanged.
+**Final merged-code audit (2026-11-14):** **417 tests pass** in a clean installation, plus **55 CLI checks**, **61/61 live website checks**, **13 browser workflows** and failure/race regressions. Calendar, algorithm, numerical-front and UI defects were fixed with regression coverage. Saved benchmark measurements were revalidated and preserved. See the [current audit and manual submission checklist](docs/merged_final_audit.md) and [captured evidence](results/merged_final_audit/). Earlier [267-test freeze](docs/freeze_audit.md) and [209-test audit](docs/final_audit.md) records describe previous revisions.
 
 The supplied proposal and professor's assignment are primary references. The [reference review](docs/reference_review.md) explains corrections and scope decisions. **All college datasets and experimental results are synthetic.** No institutional measurements, student contribution history or professor approval are invented.
 
@@ -43,7 +43,7 @@ Teacher selection makes workload genuinely variable. Room wastage measures seat 
 | AMOSA *(supplementary)* | `src/timetable/amosa.py` | Archived multi-objective simulated annealing; single-run demonstrations only |
 | Decision support *(supplementary)* | `src/timetable/mcdm.py` | TOPSIS ranking, AHP-derived weights with consistency ratio, weight-sensitivity analysis |
 
-**The validated final method is the memetic NSGA-II.** The rows marked *supplementary* were added after the held-out study was frozen; their narrower evidence, including a small matched study in which MOEA/D led on two large instances, is in [advanced methods](docs/ot_advanced_methods.md). The `data/itc_inspired` instance is synthetic, not an official ITC benchmark.
+**The validated final method is the memetic NSGA-II.** The rows marked *supplementary* were added after the held-out study was frozen; their narrower historical evidence, including a pre-correction matched study in which augmented MOEA/D led on two large instances, is in [advanced methods](docs/ot_advanced_methods.md). The `data/itc_inspired` instance is synthetic, not an official ITC benchmark.
 
 Every full evaluator call counts, including initialization, repaired candidates and local-search proposals. Internal constructive checks are timed but do not count as complete objective evaluations. Equal evaluation budgets do not imply equal compute; runtime is also reported. No solver receives the separate feasibility certificate. The enhancement is a hypothesis to evaluate, not an assumption of superiority. An exact integer load-partition relaxation in `experiments/certify_small_ideal.py` certifies all three default small-instance ideal vectors. See [method rationale](literature/README.md) and [exact guarantee boundaries](docs/exact.md).
 
@@ -93,7 +93,7 @@ python -m pip install -e . --no-deps
 python -m pytest -q
 ```
 
-The lock file covers the optimizer, tests and CP-SAT only. **For the website also run** `python -m pip install -r requirements.txt` (adds FastAPI/uvicorn/httpx) and `npm --prefix frontend ci` (Node 18+). A flexible install is `python -m pip install -e '.[test,exact,web]'`; omit `exact` to avoid OR-Tools. Core optimization and exhaustive micro examples work without it. On Windows PowerShell activate `.venv\Scripts\Activate.ps1` instead.
+The lock file covers the optimizer, CP-SAT, website backend and complete Python test suite. **For the website also run** `npm --prefix frontend ci` (Node 18+). `requirements.txt` remains a flexible, unpinned alternative. A flexible install is `python -m pip install -e '.[test,exact,web]'`; omit `exact` to avoid OR-Tools. Core optimization and exhaustive micro examples work without it. On Windows PowerShell activate `.venv\Scripts\Activate.ps1` instead.
 
 Repository: <https://github.com/akshattikaria/Optimization-Project-OT-BY-AKSHAT-MANAV-KRISH-PARTH>. The original benchmark belongs to commit `9947d9d`; the current project includes the completed follow-up and its measured source snapshot. To clone:
 
@@ -259,7 +259,6 @@ The completed predeclared validation matrix has 168 runs on separate instance se
 
 ```bash
 python main.py solve data/demo.json --method memetic --seed 0 --budget 360 --population 24 --search-seconds 6 --output results/memetic_demo --figures figures/memetic_demo
-python main.py compare --config experiments/enhancement_validation.json --resume
 python experiments/verify_enhancement.py --study enhancement_validation
 python experiments/exact_fronts.py --study enhancement_validation
 python experiments/plot_enhancement.py --study enhancement_validation

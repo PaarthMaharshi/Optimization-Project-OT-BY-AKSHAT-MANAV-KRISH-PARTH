@@ -54,7 +54,7 @@ class HybridOperators:
         repaired = evaluate_candidate(schedule)
         a, b = repaired.evaluation, individual.evaluation
         if constraint_dominates(a.objectives, b.objectives, a.violation, b.violation) or (
-            a.violation == b.violation and rng.random() < 0.5
+            a.violation == b.violation and a.violation > 0 and rng.random() < 0.5
         ):
             return repaired
         return individual

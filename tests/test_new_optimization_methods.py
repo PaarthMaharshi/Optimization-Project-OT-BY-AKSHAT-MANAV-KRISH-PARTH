@@ -9,7 +9,7 @@ from timetable.examples import conflict_instance
 from timetable.exact import cp_sat, epsilon_constraint_cp_sat
 from timetable.generation import generate_instance
 from timetable.mcdm import analyze_stakeholder_profiles, topsis
-from timetable.moead import generate_simplex_weights, moead
+from timetable.moead import generate_simplex_weights, moead, tchebycheff, weighted_sum
 
 
 def test_weight_generation():
@@ -80,3 +80,77 @@ def test_epsilon_constraint_cp_sat_micro():
     assert res.evaluated_steps == 3
     assert len(res.archive) >= 1
     assert all(evaluate(problem, s).feasible for s in res.archive)
+
+
+@pytest.mark.parametrize("method,kwargs", [
+    (moead, {"neighborhood_size": 0}), (moead, {"max_replacements": 0}),
+    (moead, {"faculty_every": 0}), (moead, {"faculty_nodes": 0}),
+    (amosa, {"population_size": 0}), (amosa, {"faculty_every": 0}),
+    (amosa, {"faculty_nodes": 0}), (amosa, {"alpha": 1.0}),
+    (amosa, {"alpha": float("nan")}), (amosa, {"t_max": float("inf")}),
+])
+def test_search_rejects_parameters_that_break_search(method, kwargs):
+    with pytest.raises(ValueError):
+        method(conflict_instance("room"), max_evaluations=10, **kwargs)
+
+
+def test_moead_distinguishes_plain_and_augmented_scalarization(monkeypatch):
+    import timetable.moead as module
+
+    original = module.tchebycheff
+    rhos = []
+
+    def observe(*args, **kwargs):
+        rhos.append(kwargs["rho"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "tchebycheff", observe)
+    problem = conflict_instance("room")
+    for mode, expected in (("tchebycheff", 0.0), ("augmented_tchebycheff", 1e-3)):
+        rhos.clear()
+        moead(problem, scalarization=mode, population_size=4, max_evaluations=8, use_faculty_search=False)
+        assert rhos and set(rhos) == {expected}
+
+
+def test_scalarization_matches_formulas_and_rejects_silent_dimension_loss():
+    assert tchebycheff((1, 3, 2), (0.5, 0.25, 0.25), (2, 1, 0), (1, 2, 2), rho=0) == 0.5
+    assert weighted_sum((1, 3, 2), (0.5, 0.25, 0.25), (1, 2, 2)) == 1.125
+    for func in (weighted_sum, lambda f, w, s: tchebycheff(f, w, (0, 0, 0), s)):
+        with pytest.raises(ValueError):
+            func((1, 2, 3), (1, 1), (1, 1, 1))
+        with pytest.raises(ValueError):
+            func((1, 2, 3), (1, 1, 1), (1, 0, 1))
+
+
+def test_amosa_alpha_controls_geometric_temperature():
+    problem = conflict_instance("room")
+    results = [amosa(problem, population_size=2, max_evaluations=20, use_faculty_search=False,
+                     t_max=1.0, t_min=1e-12, alpha=alpha) for alpha in (0.5, 0.9)]
+    assert all(result.evaluations == 20 for result in results)
+    assert 0 < results[0].metadata["temperature"] < results[1].metadata["temperature"] < 1
+
+
+@pytest.mark.parametrize("method", [moead, amosa])
+def test_new_searches_are_deterministic_nondominated_and_handle_infeasible_models(method):
+    from dataclasses import replace
+    from timetable.metrics import dominates
+
+    problem = conflict_instance("room")
+    kwargs = {"seed": 4, "population_size": 4, "max_evaluations": 20, "use_faculty_search": False}
+    a, b = method(problem, **kwargs), method(problem, **kwargs)
+    assert a.archive == b.archive and a.population == b.population
+    objectives = [evaluate(problem, s).objectives for s in a.archive]
+    assert len(objectives) == len(set(objectives))
+    assert not any(dominates(x, y) for x in objectives for y in objectives)
+    impossible = replace(problem, rooms=())
+    failed = method(impossible, **kwargs)
+    assert not failed.archive and failed.evaluations <= kwargs["max_evaluations"]
+
+
+@pytest.mark.parametrize("method", [moead, amosa])
+def test_new_searches_handle_a_well_formed_empty_problem(method):
+    from timetable.model import Problem, Schedule
+
+    problem = Problem("empty", ("Mon",), 3, (), (), (), (), ())
+    result = method(problem, population_size=2, max_evaluations=10, use_faculty_search=False)
+    assert result.evaluations == 10 and result.archive == [Schedule((), ())]

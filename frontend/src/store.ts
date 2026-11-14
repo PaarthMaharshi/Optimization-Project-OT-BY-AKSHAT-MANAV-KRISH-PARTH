@@ -117,6 +117,9 @@ function saveRun(r: RunResult) {
 const firstEntity = (inst: Instance, kind: ViewKind) =>
   kind === 'group' ? inst.groups[0].id : kind === 'faculty' ? inst.faculty[0].id : inst.rooms[0].id;
 
+const viewExists = (inst: Instance, view: State['view']) =>
+  (view.kind === 'group' ? inst.groups : view.kind === 'faculty' ? inst.faculty : inst.rooms).some((entity) => entity.id === view.entityId);
+
 const saved = loadSavedRun();
 const demoSolutions = generateSolutions(mockInstance, 7);
 const initialData = saved
@@ -184,6 +187,7 @@ export const useStore = create<State>()(
             solutions,
             baseline: null,
             stats: null,
+            runId: null,
             source: 'demo',
             selectedId: kneeOf(solutions),
             view: { kind: 'group', entityId: mockInstance.groups[0].id },
@@ -197,7 +201,7 @@ export const useStore = create<State>()(
         try {
           const res = await optimise(params, (p) => set({ progress: p }), get().customInstance);
           saveRun(res);
-          const keepView = get().source === 'backend' && get().instance.name === res.instance.name;
+          const keepView = get().source === 'backend' && get().instance.name === res.instance.name && viewExists(res.instance, get().view);
           set({
             instance: res.instance,
             solutions: res.solutions,
@@ -221,7 +225,7 @@ export const useStore = create<State>()(
         const res = await fetchLatestRun().catch(() => null);
         if (!res || (res.runId && res.runId === get().runId)) return;
         saveRun(res);
-        const keepView = get().instance.name === res.instance.name;
+        const keepView = get().instance.name === res.instance.name && viewExists(res.instance, get().view);
         set({
           instance: res.instance,
           solutions: res.solutions,

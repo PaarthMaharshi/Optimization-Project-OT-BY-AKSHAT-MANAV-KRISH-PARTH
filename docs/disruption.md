@@ -118,6 +118,12 @@ with `main.py evaluate`.
 
 ## Experimental results
 
+These are preserved historical measurements from before the final warm-start
+archive-retention fix. The current implementation retains all earlier evaluated
+archive members as epsilon increases; the audit tests that guarantee and reruns
+the quick workflow separately. The figures below have not been silently replaced
+with results from corrected code.
+
 36 runs: held-out instances `medium_1010`, `medium_1020`, `medium_1030` and `large_1010`; three disruptions each;
 solver seeds 0–2; 120 evaluations per ε level. From scratch = the final memetic NSGA-II with the same total number
 of evaluations. Full tables: [results/disruption/summary.md](../results/disruption/summary.md); figure:

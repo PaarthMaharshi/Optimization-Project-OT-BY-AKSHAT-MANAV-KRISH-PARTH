@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .calendar import Calendar, parse_day
+from .calendar import ACTIVE, Calendar, parse_day
 from .db import (
     admin_ids,
     connect,
@@ -87,6 +87,27 @@ def check_date(cal: Calendar, ds: str) -> date:
     if cal.day_index(d) is None:
         raise HTTPException(400, f"{ds} is not a teaching day.")
     return d
+
+
+def check_period(cal: Calendar, period: int, length: int = 1) -> None:
+    lunch = cal.inst["grid"].get("lunchPeriods")
+    if lunch is None:
+        lunch = [cal.inst["grid"].get("lunchPeriod")]
+    if length < 1 or period < 0 or period + length > cal.P or any(p in lunch for p in range(period, period + length)):
+        raise HTTPException(400, "Pick teaching periods within the timetable grid (not lunch).")
+
+
+def check_reactivated(con, before: Calendar, start: date, end: date) -> None:
+    """Removing a dated exception must not reactivate a class into an occupied slot."""
+    if not before.pub:
+        return
+    previous = {o["id"]: o["facultyId"] for o in before.occurrences(start, end) if o["status"] in ACTIVE}
+    after = Calendar(con)
+    for occ in after.occurrences(start, end):
+        if occ["status"] in ACTIVE and previous.get(occ["id"]) != occ["facultyId"]:
+            why = after.occurrence_conflict(occ)
+            if why:
+                raise HTTPException(409, why)
 
 
 def students_of(con, group_ids) -> list[int]:
@@ -187,19 +208,22 @@ def list_users(user=Depends(ADMIN)):
 
 
 def _insert_user(con, b: UserBody) -> dict:
+    username = b.username.strip()
+    if len(username) < 2:
+        raise HTTPException(400, "A username needs at least two non-space characters.")
     if b.role not in ("admin", "teacher", "student"):
         raise HTTPException(400, "Role must be admin, teacher or student.")
     if b.role == "teacher" and not b.facultyId:
         raise HTTPException(400, "A teacher account needs the teacher it belongs to.")
     if b.role == "student" and not b.groupId:
         raise HTTPException(400, "A student account needs a student group.")
-    if con.execute("SELECT 1 FROM users WHERE username = ?", (b.username,)).fetchone():
+    if con.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
         raise HTTPException(400, f"The username '{b.username}' is taken.")
     h, s = hash_password(b.password)
     cur = con.execute(
         "INSERT INTO users (username, password_hash, salt, role, display_name, faculty_id, group_id, default_password, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
-        (b.username.strip(), h, s, b.role, b.displayName or b.username, b.facultyId if b.role == "teacher" else None,
+        (username, h, s, b.role, b.displayName or username, b.facultyId if b.role == "teacher" else None,
          b.groupId if b.role == "student" else None, now()),
     )
     return public_user(con.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
@@ -285,13 +309,16 @@ def publish_timetable(instance: dict, solution: dict, design: dict | None, user:
                       message: str = "A new timetable has been published."):
     """Check a timetable with the optimizer's independent evaluator and make it the published one.
     Shared by the Designer's Publish button and by disruption re-optimisation."""
-    events = {e["id"] for e in instance.get("events", [])}
-    assigned = {a.get("eventId") for a in solution.get("assignments", [])}
-    if not events or events != assigned:
-        raise HTTPException(400, "The timetable must place every class of the instance exactly once.")
     # Independent hard-constraint check with the optimizer's own evaluator (same checker as the report).
     from api.bridge import check_web_timetable
     try:
+        events = {e["id"] for e in instance.get("events", [])}
+        assignments = solution.get("assignments", [])
+        if not isinstance(assignments, list) or any(not isinstance(a, dict) for a in assignments):
+            raise ValueError("Timetable assignments must be a list of objects")
+        assigned = {a.get("eventId") for a in assignments}
+        if not events or events != assigned or len(assignments) != len(events):
+            raise ValueError("The timetable must place every class of the instance exactly once.")
         ev = check_web_timetable(instance, solution)
     except (ValueError, KeyError, TypeError) as e:
         raise HTTPException(400, f"The timetable could not be checked: {e}") from e
@@ -307,7 +334,7 @@ def publish_timetable(instance: dict, solution: dict, design: dict | None, user:
                                                "id": solution.get("id"),
                                                "objectives": dict(zip(("f1", "f2", "f3"), map(float, ev.objectives))),
                                                "verified": True}),
-             json.dumps(design) if design else None, now(), user["username"]),
+             json.dumps(design) if design else None, datetime.now(timezone.utc).isoformat(timespec="microseconds"), user["username"]),
         )
         others = [r["id"] for r in con.execute("SELECT id FROM users WHERE id != ?", (user["id"],))]
         notify(con, others, message, "timetable", "/calendar")
@@ -361,10 +388,15 @@ def calendar(start: str, end: str, faculty: str | None = None, group: str | None
         occ = cal.occurrences(s, e, faculty, group, room)
         hol = {d: n for d, n in cal.holidays.items() if start <= d <= end}
         oas = [a for a in cal.assess if start <= a["day"] <= end]
+        grid = cal.inst["grid"] if cal.pub else {}
+        lunch = grid.get("lunchPeriods")
+        if lunch is None:
+            lp = grid.get("lunchPeriod")
+            lunch = [lp] if type(lp) is int and lp >= 0 else []
         return {"published": cal.pub is not None, "semester": {"start": cal.sem_start.isoformat(), "end": cal.sem_end.isoformat()},
                 "occurrences": occ, "holidays": hol, "assessments": oas,
                 "days": cal.days if cal.pub else [], "periods": cal.inst["grid"]["periods"] if cal.pub else [],
-                "lunchPeriod": cal.inst["grid"].get("lunchPeriod") if cal.pub else None}
+                "lunchPeriod": grid.get("lunchPeriod"), "lunchPeriods": lunch}
 
 
 @router.get("/free")
@@ -374,8 +406,9 @@ def free_resources(date: str, period: int, length: int = 1, user=Depends(STAFF))
         cal = Calendar(con)
         need_published(cal)
         check_date(cal, date)
+        check_period(cal, period, length)
         b = cal.busy(date, period, length)
-        rooms = [{"id": r["id"], "name": r.get("name", r["id"]), "capacity": r["capacity"]} for r in cal.inst["rooms"] if r["id"] not in b["rooms"]]
+        rooms = [{"id": r["id"], "name": r.get("name", r["id"]), "capacity": r["capacity"]} for r in cal.inst["rooms"] if not cal.room_conflict(r["id"], date, period, length)]
         teachers = [{"id": f["id"], "name": f.get("name", f["id"])} for f in cal.inst["faculty"] if not cal.teacher_conflict(f["id"], date, period, length)]
         return {"rooms": rooms, "teachers": teachers, "busyGroups": list(b["groups"])}
 
@@ -415,6 +448,7 @@ def restore_lecture(b: LectureRef, user=Depends(STAFF)):
     with connect() as con:
         cal = Calendar(con)
         need_published(cal)
+        d = check_date(cal, b.date)
         occ = cal.find(b.eventId, b.date)
         row = con.execute("SELECT * FROM cancellations WHERE event_id = ? AND day = ?", (b.eventId, b.date)).fetchone()
         if not occ or not row:
@@ -424,6 +458,7 @@ def restore_lecture(b: LectureRef, user=Depends(STAFF)):
         if (b.eventId, b.date) in cal.subs:
             raise HTTPException(400, "Another teacher has already taken this slot.")
         con.execute("DELETE FROM cancellations WHERE id = ?", (row["id"],))
+        check_reactivated(con, cal, d, d)
         con.execute("UPDATE requests SET status = 'withdrawn', decided_at = ? WHERE event_id = ? AND day = ? AND status = 'pending'", (now(), b.eventId, b.date))
         notify(con, students_of(con, occ["groupIds"]), f"{when(cal, occ)} is back on.", "change", "/timetable")
         return {"ok": True}
@@ -446,7 +481,7 @@ def assign_substitute(b: AssignBody, user=Depends(ADMIN)):
             raise HTTPException(400, "That lecture is not running on that day.")
         if b.facultyId not in cal.faculty:
             raise HTTPException(400, "Unknown teacher.")
-        why = cal.teacher_conflict(b.facultyId, b.date, occ["period"], occ["length"], ignore_id=occ["id"])
+        why = cal.occurrence_conflict(occ, b.facultyId)
         if why:
             raise HTTPException(409, why)
         _substitute(con, cal, occ, b.facultyId, user["username"])
@@ -456,7 +491,11 @@ def assign_substitute(b: AssignBody, user=Depends(ADMIN)):
 @router.post("/lectures/unassign")
 def remove_substitute(b: LectureRef, user=Depends(ADMIN)):
     with connect() as con:
+        cal = Calendar(con)
+        need_published(cal)
+        d = check_date(cal, b.date)
         con.execute("DELETE FROM substitutions WHERE event_id = ? AND day = ?", (b.eventId, b.date))
+        check_reactivated(con, cal, d, d)
     return {"ok": True}
 
 
@@ -498,6 +537,8 @@ def create_request(b: RequestBody, user=Depends(require("teacher"))):
     with connect() as con:
         cal = Calendar(con)
         need_published(cal)
+        if user["facultyId"] not in cal.faculty:
+            raise HTTPException(400, "Your account is not linked to a teacher in this timetable; ask the admin.")
         check_date(cal, b.date)
         occ = cal.find(b.eventId, b.date)
         if not occ:
@@ -508,7 +549,7 @@ def create_request(b: RequestBody, user=Depends(require("teacher"))):
             raise HTTPException(400, "Another teacher has already taken this slot.")
         if occ["originalFacultyId"] == user["facultyId"]:
             raise HTTPException(400, "This is already your lecture.")
-        why = cal.teacher_conflict(user["facultyId"], b.date, occ["period"], occ["length"], ignore_id=occ["id"])
+        why = cal.occurrence_conflict(occ, user["facultyId"])
         if why:
             raise HTTPException(409, why)
         if con.execute("SELECT 1 FROM requests WHERE event_id = ? AND day = ? AND from_user = ? AND status = 'pending'", (b.eventId, b.date, user["id"])).fetchone():
@@ -553,7 +594,11 @@ def accept_request(rid: int, b: Decision, user=Depends(STAFF)):
         sender = con.execute("SELECT * FROM users WHERE id = ?", (r["from_user"],)).fetchone()
         if not occ or occ["status"] in ("cancelled", "substituted"):
             raise HTTPException(400, "This lecture can no longer be taken over.")
-        why = cal.teacher_conflict(sender["faculty_id"], r["day"], occ["period"], occ["length"], ignore_id=occ["id"])
+        if occ["originalFacultyId"] != r["to_faculty"]:
+            raise HTTPException(409, "The owner of this lecture changed. Submit a new request.")
+        if sender["role"] != "teacher" or sender["faculty_id"] not in cal.faculty or sender["faculty_id"] == occ["originalFacultyId"]:
+            raise HTTPException(409, "The requesting account is no longer linked to an eligible substitute in this timetable.")
+        why = cal.occurrence_conflict(occ, sender["faculty_id"])
         if why:
             raise HTTPException(409, why)
         _substitute(con, cal, occ, sender["faculty_id"], user["username"])
@@ -640,11 +685,16 @@ def add_leave(b: LeaveBody, user=Depends(STAFF)):
 @router.delete("/leaves/{lid}")
 def delete_leave(lid: int, user=Depends(STAFF)):
     with connect() as con:
+        cal = Calendar(con)
         r = con.execute("SELECT * FROM leaves WHERE id = ?", (lid,)).fetchone()
         if not r or (user["role"] != "admin" and r["faculty_id"] != user["facultyId"]):
             raise HTTPException(404, "No such leave of yours.")
         con.execute("DELETE FROM leaves WHERE id = ?", (lid,))
-        return {"ok": True}
+        check_reactivated(con, cal, parse_day(r["start_date"]), parse_day(r["end_date"]))
+        faculty_id = r["faculty_id"]
+    from api.disruptions import on_leave_removed
+    on_leave_removed(faculty_id)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -672,8 +722,7 @@ def add_extra(b: ExtraBody, user=Depends(STAFF)):
             raise HTTPException(403, "You can only add classes for courses you teach.")
         if b.kind not in ("quiz", "extra"):
             raise HTTPException(400, "Kind must be quiz or extra.")
-        if not (0 <= b.period < cal.P) or b.period == cal.inst["grid"].get("lunchPeriod"):
-            raise HTTPException(400, "Pick a teaching period (not lunch).")
+        check_period(cal, b.period)
         if b.date in cal.holidays:
             raise HTTPException(400, f"{b.date} is a holiday ({cal.holidays[b.date]}).")
         done = cal.syllabus.get(b.offeringId)
@@ -682,15 +731,16 @@ def add_extra(b: ExtraBody, user=Depends(STAFF)):
         room = cal.rooms.get(b.roomId)
         if not room:
             raise HTTPException(400, "Unknown room.")
-        size = max((cal.groups[g]["strength"] for g in off["groupIds"] if g in cal.groups), default=0)
+        size = sum(cal.groups[g]["strength"] for g in off["groupIds"] if g in cal.groups)
         if room["capacity"] < size:
             raise HTTPException(400, f"{room.get('name', b.roomId)} holds {room['capacity']}, the class has {size} students.")
         busy = cal.busy(b.date, b.period, 1)
         clash_group = [g for g in off["groupIds"] if g in busy["groups"]]
         if clash_group:
             raise HTTPException(409, f"The students already have {busy['groups'][clash_group[0]]} then.")
-        if b.roomId in busy["rooms"]:
-            raise HTTPException(409, f"{room.get('name', b.roomId)} is taken by {busy['rooms'][b.roomId]}.")
+        why = cal.room_conflict(b.roomId, b.date, b.period, 1)
+        if why:
+            raise HTTPException(409, why)
         if cal._assessment(off["groupIds"], b.date, b.period, b.period):
             raise HTTPException(409, "The students have an online assessment then.")
         fid = cal.faculty_of.get(b.offeringId)
@@ -734,6 +784,8 @@ def add_assessment(b: AssessmentBody, user=Depends(STAFF)):
         d = check_date(cal, b.date)
         if b.endPeriod < b.startPeriod:
             raise HTTPException(400, "The assessment must end after it starts.")
+        if not 0 <= b.startPeriod <= b.endPeriod < cal.P:
+            raise HTTPException(400, "Assessment periods must be within the timetable grid.")
         unknown = [g for g in b.groupIds if g not in cal.groups]
         if unknown:
             raise HTTPException(400, f"Unknown groups: {unknown}")
@@ -750,7 +802,12 @@ def add_assessment(b: AssessmentBody, user=Depends(STAFF)):
 @router.delete("/assessments/{aid}")
 def delete_assessment(aid: int, user=Depends(STAFF)):
     with connect() as con:
+        cal = Calendar(con)
+        row = con.execute("SELECT * FROM assessments WHERE id = ?", (aid,)).fetchone()
         con.execute("DELETE FROM assessments WHERE id = ?", (aid,))
+        if row:
+            d = parse_day(row["day"])
+            check_reactivated(con, cal, d, d)
     return {"ok": True}
 
 
@@ -798,6 +855,7 @@ def reopen_syllabus(offering_id: str, user=Depends(STAFF)):
         if cal.pub and not teaches(cal, user, offering_id):
             raise HTTPException(403, "You can only reopen courses you teach.")
         con.execute("DELETE FROM syllabus WHERE offering_id = ?", (offering_id,))
+        check_reactivated(con, cal, cal.sem_start, cal.sem_end)
         return {"ok": True}
 
 
@@ -827,8 +885,14 @@ def add_holiday(b: HolidayBody, user=Depends(ADMIN)):
 
 @router.delete("/holidays/{day}")
 def delete_holiday(day: str, user=Depends(ADMIN)):
+    try:
+        d = parse_day(day)
+    except ValueError:
+        raise HTTPException(400, "Use a YYYY-MM-DD date.") from None
     with connect() as con:
+        cal = Calendar(con)
         con.execute("DELETE FROM holidays WHERE day = ?", (day,))
+        check_reactivated(con, cal, d, d)
     return {"ok": True}
 
 

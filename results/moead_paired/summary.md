@@ -5,6 +5,8 @@ All instances are synthetic. Each (instance, solver seed) is one matched pair: s
 same seed, same cap on complete evaluator calls. Hypervolume uses the fixed a-priori
 normalization and reference point (1.1, 1.1, 1.1); higher is better.
 
+**Historical exploratory evidence.** Numeric records are retained unchanged from the merged study. Full schedules, objective archives and a frozen source manifest were not saved, so final cleanup can check aggregate arithmetic but cannot independently reconstruct feasibility, exact fronts or timing histories. The historical “MOEA/D, Tchebycheff” label used augmentation coefficient 0.001; current plain Tchebycheff uses zero augmentation. These rows do not measure the corrected implementation. Solver seeds are clustered within instances; the displayed solver-pair sign tests do not establish independent-instance significance. Runtimes were recorded under concurrent machine load. See [evidence boundaries](../../docs/ot_advanced_methods.md).
+
 ## Small instances (budget 720 evaluations)
 
 *Sanity scenario: the 40-event instances usually have a one-point front.*
@@ -58,14 +60,15 @@ normalization and reference point (1.1, 1.1, 1.1); higher is better.
 | MOEA/D, Tchebycheff vs MOEA/D, weighted sum | 6 | 2 | 4 | 0 | -0.00062 | 0.6875 |
 | MOEA/D, weighted sum vs Memetic NSGA-II (final method) | 6 | 6 | 0 | 0 | +0.03766 | 0.0312 |
 
-## Supported and unsupported points
+## Finite weight-grid selection
 
-For each instance the archives of all methods and seeds are pooled and reduced to their
-non-dominated reference front. A point is *supported* if it minimizes some positive weighted
-sum over that front (weights searched on a regular simplex grid). Unsupported points lie in
-non-convex parts of the front; no weighted sum can single them out.
+For each instance the archives of all methods and seeds were pooled and reduced to their
+observed non-dominated reference front. Positive weights on an 80-division simplex grid
+selected some points by weighted-sum minimization. Selection establishes support on that
+observed front; failure on this finite grid does not prove unsupportedness or non-convexity.
+Legacy JSON keys `supported` / `unsupported` mean grid-selected / grid-unselected.
 
-| Instance | Reference front | Supported | Unsupported | Unsupported reference points contributed by: greedy / memetic / MOEA/D-Tch / MOEA/D-WS |
+| Instance | Reference front | Grid-selected | Grid-unselected | Grid-unselected reference points contributed by: greedy / memetic / MOEA/D-Tch / MOEA/D-WS |
 |---|---:|---:|---:|---|
 | small-3010 | 1 | 1 | 0 | 0 / 0 / 0 / 0 |
 | medium-3010 | 19 | 6 | 13 | 7 / 4 / 0 / 2 |

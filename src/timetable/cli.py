@@ -251,7 +251,7 @@ def main(argv=None) -> int:
                 }
                 _write(out / "gaps_room_tradeoff.json", payload)
                 export_representatives(problem, eps_res.archive, out / "timetables", figures)
-                plot_fronts([{"method": "cpsat_eps", "objectives": v} for v in eps_res.objectives], figures / "gaps_room_tradeoff.png", "Gaps vs room-wastage trade-off (CP-SAT epsilon-constraint; f3 not optimized)", certified=True)
+                plot_fronts([{"method": "cpsat_eps", "objectives": v} for v in eps_res.objectives], figures / "gaps_room_tradeoff.png", "Gaps vs room-wastage trade-off (CP-SAT epsilon-constraint; f3 not optimized)")
                 print(json.dumps({key: payload[key] for key in ["method", "runtime", "archive_size", "objectives"]}, indent=2))
                 return 0 if eps_res.archive else 2
 

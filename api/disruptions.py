@@ -67,8 +67,8 @@ def describe(pub: dict, kind: str, rid: str, slots: list[int], note: str = "") -
     who = _name(pub, kind, rid)
     days = pub["instance"]["grid"]["days"]
     P = len(pub["instance"]["grid"]["periods"])
-    on_days = sorted({s // P for s in slots})
-    when = (" on " + ", ".join(days[d] for d in on_days)) if slots and len(on_days) < len(days) else ""
+    on_days = sorted({s // P for s in slots if 0 <= s < len(days) * P})
+    when = (" on " + ", ".join(days[d] for d in on_days)) if on_days and len(on_days) < len(days) else ""
     text = {"availability": f"{who}'s saved availability conflicts with the published timetable",
             "teacher_absent": f"{who} is unavailable{when or ' all week'}",
             "teacher_leaves": f"{who} is leaving",
@@ -111,6 +111,15 @@ def _record(con, pub: dict, kind: str, rid: str, slots: list[int], source: str, 
 def _resolve_open(con, kind: str, rid: str, source: str, reason: str) -> None:
     con.execute("UPDATE disruptions SET status = 'resolved', resolved_at = ?, resolved_by = ? WHERE status = 'open' AND kind = ? AND resource = ? AND source = ?",
                 (now(), reason, kind, rid, source))
+
+
+def _constraint_snapshot(con) -> dict:
+    return {r["faculty_id"]: {"unavailable": json.loads(r["unavailable"]), "max_daily": r["max_daily"]}
+            for r in con.execute("SELECT * FROM teacher_constraints")}
+
+
+def _disruption_snapshot(row) -> dict:
+    return {key: row[key] for key in ("kind", "resource", "slots", "note", "published_at")}
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +171,32 @@ def on_leave_added(faculty_id: str, start: date, end: date, by: str) -> dict | N
         return None
 
 
+def on_leave_removed(faculty_id: str) -> None:
+    """Refresh a leave alert when its supporting leave is removed."""
+    try:
+        with connect() as con:
+            pub = load_published(con)
+            if not pub:
+                return
+            sem_start = date.fromisoformat(get_setting(con, "semester_start"))
+            sem_end = date.fromisoformat(get_setting(con, "semester_end"))
+            n_days = len(pub["instance"]["grid"]["days"])
+            remaining = None
+            for row in con.execute("SELECT * FROM leaves WHERE faculty_id = ? ORDER BY id DESC", (faculty_id,)):
+                start, end = date.fromisoformat(row["start_date"]), date.fromisoformat(row["end_date"])
+                first, last = max(start, sem_start), min(end, sem_end)
+                teaching = sum((first + timedelta(days=i)).weekday() < n_days for i in range(max(0, (last - first).days + 1)))
+                if teaching >= LONG_LEAVE_DAYS:
+                    remaining = (start, end, row["created_by"])
+                    break
+            if remaining is None:
+                _resolve_open(con, "teacher_absent", faculty_id, "leave", "leave removed")
+        if remaining is not None:
+            on_leave_added(faculty_id, *remaining)
+    except Exception:
+        traceback.print_exc()
+
+
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
@@ -190,7 +225,9 @@ def _row(con, r, pub) -> dict:
             "description": describe(pub, r["kind"], r["resource"], slots, r["note"]) if pub else r["kind"],
             "stale": bool(pub) and r["published_at"] != pub["publishedAt"],
             "hasResult": result is not None,
-            "resultStale": bool(result and pub and result.get("basedOn") != pub["publishedAt"])}
+            "resultStale": bool(result and pub and (result.get("basedOn") != pub["publishedAt"]
+                                  or result.get("constraintSnapshot") != _constraint_snapshot(con)
+                                  or result.get("disruptionSnapshot") != _disruption_snapshot(r)))}
 
 
 @router.get("/disruptions")
@@ -239,9 +276,11 @@ def report_disruption(b: ReportBody, user=Depends(_admin())):
         if not pub:
             raise HTTPException(409, "Publish a timetable first.")
         P = len(pub["instance"]["grid"]["periods"])
-        lunch = pub["instance"]["grid"].get("lunchPeriods") or [pub["instance"]["grid"]["lunchPeriod"]]
+        lunch = pub["instance"]["grid"].get("lunchPeriods")
+        if lunch is None:
+            lunch = [pub["instance"]["grid"].get("lunchPeriod")]
         slots = [] if b.day is None else [b.day * P + p for p in range(P) if p not in lunch]
-        if b.kind == "teacher_absent" and b.day is not None and b.day >= len(pub["instance"]["grid"]["days"]):
+        if b.day is not None and b.day >= len(pub["instance"]["grid"]["days"]):
             raise HTTPException(400, "That day is not in the timetable.")
         try:
             broken = _broken(pub, b.kind, b.resource, slots, None)
@@ -287,12 +326,9 @@ def _budget_for(n_events: int) -> int:
     return 120 if n_events <= 200 else 80
 
 
-def _work(job_id: str, did: int, seed: int, budget: int | None, overrides: dict):
+def _work(job_id: str, did: int, seed: int, budget: int | None, overrides: dict, r: dict, pub: dict):
     job = _jobs[job_id]
     try:
-        with connect() as con:
-            r = con.execute("SELECT * FROM disruptions WHERE id = ?", (did,)).fetchone()
-            pub = load_published(con)
         kind, rid, slots = r["kind"], r["resource"], json.loads(r["slots"])
         problem, s0, disrupted = _disrupted(pub, kind, rid, slots, overrides)
         if not evaluate(problem, s0).feasible:
@@ -324,7 +360,8 @@ def _work(job_id: str, did: int, seed: int, budget: int | None, overrides: dict)
             seen[schedule] = opt
             options.append(opt)
 
-        add("repair", "Fewest changes (minimal repair)", rep.schedule, rep.changes,
+        repair_label = "Fewest changes (proven minimal repair)" if rep.proven_minimal else "Repair (minimum not proven)"
+        add("repair", repair_label, rep.schedule, rep.changes,
             hypervolume([normalize(evaluate(disrupted, rep.schedule).objectives, scales)]), 1)
         for level in res.levels:
             if level.feasible:
@@ -342,9 +379,17 @@ def _work(job_id: str, did: int, seed: int, budget: int | None, overrides: dict)
             "levels": [{"epsilon": lv.epsilon, "feasible": lv.feasible, "hypervolume": lv.hypervolume, "front": len(lv.archive),
                         "evaluations": lv.evaluations} for lv in res.levels],
             "constraintsApplied": sorted(overrides),
+            "constraintSnapshot": overrides, "disruptionSnapshot": _disruption_snapshot(r),
             "runtime": time.time() - started, "seed": seed, "budgetPerLevel": budget,
         }
         with connect() as con:
+            current = con.execute("SELECT * FROM disruptions WHERE id = ?", (did,)).fetchone()
+            current_pub = load_published(con)
+            if (not current or current["status"] != "open" or not current_pub
+                    or current_pub["publishedAt"] != result["basedOn"]
+                    or _disruption_snapshot(current) != result["disruptionSnapshot"]
+                    or _constraint_snapshot(con) != overrides):
+                raise RuntimeError("The timetable, disruption or saved constraints changed while this was computed. Re-optimise again.")
             con.execute("UPDATE disruptions SET result_json = ? WHERE id = ?", (json.dumps(result), did))
         job.update(status="done", result=result)
     except Exception as e:  # report to the client instead of failing silently
@@ -354,19 +399,21 @@ def _work(job_id: str, did: int, seed: int, budget: int | None, overrides: dict)
 
 @router.post("/disruptions/{did}/reoptimize")
 def reoptimize(did: int, b: ReoptBody, user=Depends(_admin())):
-    from .campus.routes import constraint_overrides
     with connect() as con:
         r = con.execute("SELECT * FROM disruptions WHERE id = ?", (did,)).fetchone()
         if not r or r["status"] != "open":
             raise HTTPException(404, "No open disruption with that id.")
-        if not load_published(con):
+        pub = load_published(con)
+        if not pub:
             raise HTTPException(409, "Nothing is published.")
+        overrides = _constraint_snapshot(con)
+        snapshot = dict(r)
     job_id = uuid.uuid4().hex[:10]
     with _lock:
         for k in [k for k, j in _jobs.items() if j["status"] != "running"][:-10]:
             del _jobs[k]
         _jobs[job_id] = {"status": "running", "progress": {"phase": "queued"}, "disruptionId": did}
-    _executor.submit(_work, job_id, did, b.seed, b.budget, constraint_overrides())
+    _executor.submit(_work, job_id, did, b.seed, b.budget, overrides, snapshot, pub)
     return {"jobId": job_id}
 
 
@@ -389,11 +436,14 @@ def apply_option(did: int, b: ApplyBody, user=Depends(_admin())):
     with connect() as con:
         r = con.execute("SELECT * FROM disruptions WHERE id = ?", (did,)).fetchone()
         pub = load_published(con)
+        constraints = _constraint_snapshot(con)
     if not r or r["status"] != "open" or not r["result_json"]:
         raise HTTPException(404, "Re-optimise this disruption first.")
     result = json.loads(r["result_json"])
     if not pub or result["basedOn"] != pub["publishedAt"]:
         raise HTTPException(409, "The published timetable changed since this was computed. Re-optimise again.")
+    if result.get("constraintSnapshot") != constraints or result.get("disruptionSnapshot") != _disruption_snapshot(r):
+        raise HTTPException(409, "The disruption or saved constraints changed since this was computed. Re-optimise again.")
     option = next((o for o in result["options"] if o["key"] == b.option), None)
     if option is None:
         raise HTTPException(400, "Unknown option.")

@@ -1,5 +1,9 @@
 # Disruption study: minimal-change re-optimisation
 
+Historical measurements are preserved. They predate the final warm-start archive
+retention correction; see [the current audit](../../docs/merged_final_audit.md)
+for separately rerun functional checks. Numeric records below are unchanged.
+
 36 runs: held-out instances medium_1010, medium_1020, medium_1030, large_1010; 3 disruptions each; solver seeds [0, 1, 2].
 Hypervolume uses the project's a-priori normalisation, reference (1.1, 1.1, 1.1), on the disrupted problem.
 *Changes* = sessions whose time, room or teacher differs from the published timetable S0. *Broken* = sessions

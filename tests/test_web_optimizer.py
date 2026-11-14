@@ -54,3 +54,50 @@ def test_failed_comparison_is_reported_not_replaced(monkeypatch):
     assert row["status"] == "failed" and row["hv"] is None and row["frontSize"] == 0
     assert "deliberate test failure" in row["error"]
     assert "moead" not in stats["multiConvergence"] and "moeadFront" not in stats
+
+
+def test_website_uses_exact_fronts_and_preserves_native_measurements(monkeypatch, tmp_path):
+    """The saved equal-variance ULP counterexample must not become two Pareto options."""
+    from hashlib import sha256
+    import json
+    from pathlib import Path
+    from timetable.model import problem_from_dict, schedule_from_dict, schedule_to_dict
+    from timetable.nsga2 import SearchResult
+
+    root = Path(__file__).resolve().parents[1]
+    problem = problem_from_dict(json.loads((root / "data/enhancement_validation/large_1010.json").read_text()))
+    raw = json.loads((root / "results/enhancement_validation/runs/large_1010_evaluations_memetic_0.json").read_text())
+    schedules = [schedule_from_dict(raw["archive"][i]) for i in (8, 9)]
+    search = SearchResult(schedules, [], 2, 0.01, best_schedule=schedules[0], population=schedules)
+    for name in ("memetic_nsga2", "greedy_search", "moead", "amosa", "nsga2"):
+        monkeypatch.setattr(optimizer, name, lambda *_args, **_kwargs: search)
+    monkeypatch.setenv("CLOCKWORK_RUNS_DIR", str(tmp_path))
+    result = run_optimizer(problem, RunConfig(budget=40, search_seconds=None, advanced_benchmark=True), run_id="precision")
+    stats = result["stats"]
+    assert stats["frontSize"] == stats["baselineFrontSize"] == 1
+    assert stats["rawFrontSize"] == 2
+    assert all(row["frontSize"] == 1 for row in stats["algorithmComparison"])
+    assert len([s for s in result["solutions"] if s["onFront"]]) == 1
+    assert result["solutions"][0]["objectives"]["f3"] == result["solutions"][1]["objectives"]["f3"]
+    assert result["solutions"][0]["objectives"]["f2"] < result["solutions"][1]["objectives"]["f2"]
+    assert not result["solutions"][1]["onFront"]
+    saved = tmp_path / "precision"
+    native = json.loads((saved / "run.json").read_text())
+    exact = json.loads((saved / "exact_front.json").read_text())
+    assert len(native["archive"]) == 2 and len(exact["archive"]) == 1
+    assert exact["run_sha256"] == sha256((saved / "run.json").read_bytes()).hexdigest()
+    assert exact["archive"][0] == json.loads(json.dumps(schedule_to_dict(schedules[0])))
+
+
+def test_invalid_comparison_archive_is_reported_as_failure(monkeypatch):
+    from dataclasses import replace
+    from timetable.greedy import greedy
+    from timetable.nsga2 import SearchResult
+    problem = demo_problem()
+    schedule = greedy(problem, seed=1)
+    broken = replace(schedule, placements=(None,) + schedule.placements[1:])
+    monkeypatch.setattr(optimizer, "moead", lambda *_args, **_kwargs: SearchResult([broken], [], 1, 0.01))
+    stats = run_optimizer(problem, RunConfig(budget=40, search_seconds=None, advanced_benchmark=True), save=False)["stats"]
+    row = next(r for r in stats["algorithmComparison"] if r["id"] == "moead")
+    assert row["status"] == "failed" and row["hv"] is None and row["frontSize"] == 0
+    assert "moeadFront" not in stats

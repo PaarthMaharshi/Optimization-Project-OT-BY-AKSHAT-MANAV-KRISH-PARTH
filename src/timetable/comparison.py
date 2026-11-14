@@ -364,20 +364,122 @@ def _source_manifest() -> dict:
 
 
 def _validate_cached(problem, payload, expected) -> None:
+    try:
+        _validate_cached_record(problem, payload, expected)
+    except (KeyError, TypeError, IndexError, AttributeError) as exc:
+        raise ValueError("Cached comparison has malformed archive or history evidence") from exc
+
+
+def _validate_cached_record(problem, payload, expected) -> None:
     if any(payload.get(key) != value for key, value in expected.items()):
         raise ValueError("Cached comparison identity or allocation mismatch")
-    if not 0 <= payload["evaluations"] <= payload["evaluation_cap"]:
+    if (type(payload["evaluations"]) is not int or type(payload["evaluation_cap"]) is not int
+            or not 0 <= payload["evaluations"] <= payload["evaluation_cap"]):
         raise ValueError("Cached comparison exceeds its evaluation cap")
     schedules = [schedule_from_dict(data) for data in payload["archive"]]
     outcomes = [evaluate(problem, candidate) for candidate in schedules]
     vectors = [list(outcome.objectives) for outcome in outcomes]
     if any(not outcome.feasible for outcome in outcomes) or vectors != payload["objectives"]:
         raise ValueError("Cached comparison archive failed independent validation")
+    if (len({tuple(v) for v in vectors}) != len(vectors)
+            or any(dominates(a, b) for a in vectors for b in vectors)):
+        raise ValueError("Cached comparison archive must contain unique nondominated objective vectors")
     hv = hypervolume([normalize(vector, objective_scales(problem)) for vector in vectors])
-    if hv != payload["hypervolume"] or len(schedules) != payload["archive_size"] or bool(schedules) != payload["feasible_run"]:
+    if (hv != payload["hypervolume"] or type(payload["archive_size"]) is not int
+            or len(schedules) != payload["archive_size"] or type(payload["feasible_run"]) is not bool
+            or bool(schedules) != payload["feasible_run"]):
         raise ValueError("Cached comparison indicators disagree with its archive")
-    if sum(payload["genotype_evaluation_counts"].values()) != payload["evaluations"]:
+    counts = payload["genotype_evaluation_counts"]
+    if (not isinstance(counts, dict) or any(type(n) is not int or n < 1 for n in counts.values())
+            or sum(counts.values()) != payload["evaluations"]):
         raise ValueError("Cached comparison genotype counts disagree with its evaluation count")
+    _validate_cached_history(problem, payload, schedules, vectors)
+
+
+def _validate_cached_history(problem, payload, schedules, vectors) -> None:
+    """Replay available observer evidence; candidate schedules beyond the archive are not stored."""
+    history = payload["history"]
+    runtime, limit = payload["runtime"], payload["wall_time_limit"]
+    cutoff = runtime if limit is None else limit
+    if (not isinstance(history, list) or len(history) != payload["evaluations"]
+            or not math.isfinite(runtime) or runtime < 0
+            or (limit is not None and (not math.isfinite(limit) or limit <= 0))
+            or payload["quality_cutoff_seconds"] != cutoff
+            or payload["wall_time_overshoot_seconds"] != (max(0.0, runtime - limit) if limit is not None else 0.0)):
+        raise ValueError("Cached comparison history count or cutoff disagrees with the run")
+    scales = objective_scales(problem)
+    if list(payload["normalization"]) != list(scales) or payload["reference"] != [1.1, 1.1, 1.1]:
+        raise ValueError("Cached comparison normalization or reference changed")
+    hashes = Counter()
+    outcomes_by_hash = {}
+    front = {}
+    feasible_hashes, feasible_vectors = set(), set()
+    feasible = on_time = late_count = 0
+    first_feasible = minimum_violation = None
+    previous_time = 0.0
+    history_volumes = {}
+    for index, row in enumerate(history):
+        elapsed = row["elapsed_seconds"]
+        key = row["schedule_sha256"]
+        violation = row["candidate_violation"]
+        vector = row["candidate_objectives"]
+        if (type(row["generation"]) is not int or row["generation"] != index
+                or type(row["evaluations"]) is not int or row["evaluations"] != index + 1
+                or not math.isfinite(elapsed) or not previous_time <= elapsed <= runtime
+                or not isinstance(key, str) or len(key) != 64 or any(c not in "0123456789abcdef" for c in key)
+                or type(violation) is not int or violation < 0
+                or type(row["candidate_feasible"]) is not bool or row["candidate_feasible"] != (violation == 0)
+                or len(vector) != 3 or any(not math.isfinite(v) or v < 0 for v in vector)):
+            raise ValueError("Cached comparison history has invalid sequence or candidate evidence")
+        late = limit is not None and elapsed > limit
+        if type(row["completed_after_deadline"]) is not bool or row["completed_after_deadline"] != late or (late and index != len(history) - 1):
+            raise ValueError("Cached comparison history violates its quality cutoff")
+        evidence = (tuple(vector), violation)
+        if key in outcomes_by_hash and outcomes_by_hash[key] != evidence:
+            raise ValueError("Cached comparison history gives inconsistent outcomes for one schedule hash")
+        outcomes_by_hash[key] = evidence
+        hashes[key] += 1
+        previous_time = elapsed
+        feasible += violation == 0
+        late_count += late
+        if not late:
+            minimum_violation = violation if minimum_violation is None else min(minimum_violation, violation)
+            if violation == 0:
+                on_time += 1
+                feasible_hashes.add(key)
+                feasible_vectors.add(tuple(vector))
+                if first_feasible is None:
+                    first_feasible = elapsed
+                if tuple(vector) not in front and not any(dominates(old, vector) for old in front):
+                    front = {old: digest for old, digest in front.items() if not dominates(vector, old)}
+                    front[tuple(vector)] = key
+        front_key = tuple(front)
+        if front_key not in history_volumes:
+            history_volumes[front_key] = hypervolume([normalize(v, scales) for v in front])
+        expected_hv = history_volumes[front_key]
+        if (row["evaluated_feasible_fraction"] != feasible / (index + 1)
+                or row["min_violation"] != minimum_violation or row["hypervolume"] != expected_hv):
+            raise ValueError("Cached comparison history indicators disagree with its on-time candidates")
+    archive_evidence = {tuple(v): _digest(schedule_to_dict(s)) for s, v in zip(schedules, vectors)}
+    if dict(hashes) != payload["genotype_evaluation_counts"] or archive_evidence != front:
+        raise ValueError("Cached comparison archive lacks matching on-time history/hash provenance")
+    calls = payload["evaluations"]
+    checks = {
+        "time_to_first_feasible_seconds": first_feasible,
+        "minimum_violation": minimum_violation,
+        "feasible_evaluation_fraction": feasible / calls if calls else 0.0,
+        "on_time_feasible_evaluation_fraction": on_time / calls if calls else 0.0,
+        "duplicate_evaluation_fraction": (calls - len(hashes)) / calls if calls else 0.0,
+    }
+    metadata_checks = {"full_evaluator_calls": calls, "evaluated_feasible": feasible,
+                       "on_time_feasible_evaluations": on_time, "late_completed_evaluations": late_count,
+                       "minimum_violation": minimum_violation, "unique_genotypes_evaluated": len(hashes),
+                       "duplicate_evaluations": calls - len(hashes),
+                       "unique_feasible_genotypes_by_cutoff": len(feasible_hashes),
+                       "unique_feasible_objective_vectors_by_cutoff": len(feasible_vectors)}
+    if (any(payload[k] != value for k, value in checks.items())
+            or any(payload["metadata"][k] != value for k, value in metadata_checks.items())):
+        raise ValueError("Cached comparison accounting disagrees with its history")
 
 
 def run_comparison(config_path: str | Path, root: str | Path = ".", resume: bool = False) -> Path:

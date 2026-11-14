@@ -18,7 +18,7 @@ const TABS: [Tab, string][] = [
 
 export default function Manage() {
   const [tab, setTab] = useState<Tab>('accounts');
-  const { pub, reload } = usePublished();
+  const { pub, error, reload } = usePublished();
   const ready = pub && pub !== 'none' ? pub : null;
   return (
     <>
@@ -35,6 +35,7 @@ export default function Manage() {
           </button>
         ))}
       </div>
+      {error && <div className="error-box">{error}</div>}
       {pub === 'none' && tab !== 'accounts' && tab !== 'semester' && tab !== 'holidays' ? (
         <div className="card">
           <p className="muted" style={{ margin: 0 }}>
@@ -333,14 +334,22 @@ function Holidays() {
 
 function Assessments({ pub }: { pub: Published }) {
   const { periods, lunchPeriod } = pub.instance.grid;
+  const lunchPeriods = new Set(pub.instance.grid.lunchPeriods ?? [lunchPeriod]);
+  const teachingPeriods = periods.map((_, i) => i).filter((i) => !lunchPeriods.has(i));
   const [rows, setRows] = useState<{ id: number; title: string; day: string; start_period: number; end_period: number; group_ids: string[] }[]>([]);
-  const [form, setForm] = useState({ title: '', date: iso(new Date()), startPeriod: 0, endPeriod: 1, groupIds: [] as string[] });
+  const [form, setForm] = useState({ title: '', date: iso(new Date()), startPeriod: teachingPeriods[0] ?? 0, endPeriod: teachingPeriods[1] ?? teachingPeriods[0] ?? 0, groupIds: [] as string[] });
   const { run, view } = useAsync();
   const load = useCallback(() => {
     api<typeof rows>('/assessments').then(setRows).catch(() => {});
   }, []);
   useEffect(load, [load]);
   const group = (id: string) => pub.instance.groups.find((g) => g.id === id)?.name ?? id;
+  const periodEdge = (index: number, end = false) => {
+    const label = periods[index];
+    if (!label) return `Period ${index + 1}`;
+    const parts = label.split(/\s*[-–—]\s*/);
+    return end ? parts[parts.length - 1] : parts[0];
+  };
   return (
     <div className="stack">
       <h2>Online assessments</h2>
@@ -351,7 +360,7 @@ function Assessments({ pub }: { pub: Published }) {
         {rows.map((a) => (
           <li key={a.id}>
             <span>
-              <b>{a.title}</b> · {pretty(a.day)}, {periods[a.start_period].split('-')[0]}–{periods[a.end_period].split('-')[1]} · {a.group_ids.map(group).join(', ')}
+              <b>{a.title}</b> · {pretty(a.day)}, {periodEdge(a.start_period)}–{periodEdge(a.end_period, true)} · {a.group_ids.map(group).join(', ')}
             </span>
             <button className="btn sm ghost" onClick={() => run(() => del(`/assessments/${a.id}`)).then(load)}>
               Remove
@@ -372,13 +381,13 @@ function Assessments({ pub }: { pub: Published }) {
         <label className="field">
           From
           <select value={form.startPeriod} onChange={(e) => setForm({ ...form, startPeriod: Number(e.target.value) })}>
-            {periods.map((p, i) => (i === lunchPeriod ? null : <option key={i} value={i}>{p}</option>))}
+            {periods.map((p, i) => (lunchPeriods.has(i) ? null : <option key={i} value={i}>{p}</option>))}
           </select>
         </label>
         <label className="field">
           To
           <select value={form.endPeriod} onChange={(e) => setForm({ ...form, endPeriod: Number(e.target.value) })}>
-            {periods.map((p, i) => (i === lunchPeriod ? null : <option key={i} value={i}>{p}</option>))}
+            {periods.map((p, i) => (lunchPeriods.has(i) ? null : <option key={i} value={i}>{p}</option>))}
           </select>
         </label>
       </div>
@@ -416,7 +425,7 @@ function AvailabilityTab({ pub }: { pub: Published }) {
     <div className="stack">
       <div className="row">
         <h2 style={{ margin: 0 }}>Teacher availability</h2>
-        <select className="input" style={{ width: 'auto' }} value={fid} onChange={(e) => setFid(e.target.value)}>
+        <select className="input" aria-label="Availability teacher" style={{ width: 'auto' }} value={fid} onChange={(e) => setFid(e.target.value)}>
           {pub.instance.faculty.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}

@@ -13,8 +13,8 @@ and the trade-off is solved with the epsilon-constraint method: for an increasin
 
     minimise (f1, f2, f3)(S)   subject to   S feasible for P'   and   delta(S, S0) <= eps.
 
-Every eps gives a Pareto front; together they trace the stability/quality trade-off, i.e. the Pareto set of the
-four-objective problem (delta, f1, f2, f3).
+Every eps gives an observed non-dominated front; together their non-dominated points sample the
+stability/quality trade-off of the four-objective problem (delta, f1, f2, f3).
 
 Algorithm (this module only *reuses* the existing operators and selection; none of them is modified):
 
@@ -32,8 +32,9 @@ Algorithm (this module only *reuses* the existing operators and selection; none 
    eps_{i+1} (the feasible sets are nested), so each level's archive weakly dominates the previous one and its
    hypervolume cannot decrease.
 
-Every complete candidate is checked with the shared independent ``evaluate`` and counted against the per-level
-budget. Constraint pre-checks (delta, resource masks) are not full evaluations, exactly as in the memetic method.
+Every new complete candidate is checked with the shared independent ``evaluate`` and counted against the
+per-level budget. Previously checked warm starts reuse their evaluations. Constraint pre-checks (delta,
+resource masks) are not full evaluations, exactly as in the memetic method.
 """
 from __future__ import annotations
 
@@ -144,6 +145,9 @@ def apply_disruption(problem: Problem, disruption: Disruption) -> Problem:
 def change_breakdown(problem: Problem, original: Schedule, candidate: Schedule) -> dict[str, int]:
     """Changed sessions (``total``) and why: different time, different room, different offering teacher.
     A session can change for several reasons but counts once in ``total``."""
+    if any(len(s.placements) != len(problem.events) or len(s.teachers) != len(problem.offerings)
+           for s in (original, candidate)):
+        raise ValueError("compared schedules must have one placement per session and one teacher per offering")
     offering_of = {o.id: k for k, o in enumerate(problem.offerings)}
     out = {"total": 0, "time": 0, "room": 0, "teacher": 0}
     for i, event in enumerate(problem.events):
@@ -193,6 +197,8 @@ def broken_sessions(problem: Problem, original: Schedule) -> list[int]:
 
 
 def _keep_valid(nb: FeasibleNeighborhood, problem: Problem, original: Schedule):
+    if len(original.placements) != len(problem.events) or len(original.teachers) != len(problem.offerings):
+        raise ValueError("original schedule must match the problem's sessions and offerings")
     needs_teacher = {k for k, o in enumerate(problem.offerings)
                      if original.teachers[k] not in nb.faculty or original.teachers[k] not in o.eligible_faculty}
     state = _State(nb, Schedule((None,) * len(problem.events), tuple(original.teachers)))
@@ -374,8 +380,8 @@ def epsilon_reoptimize(problem: Problem, original: Schedule, disruption: Disrupt
     only observes and never changes the search.
     """
     validate_problem(problem)
-    if budget < 1 or population < 2:
-        raise ValueError("budget must be >=1 and population >=2")
+    if type(budget) is not int or budget < 1 or type(population) is not int or population < 2:
+        raise ValueError("budget must be an integer >=1 and population an integer >=2")
     if not 0 <= restore_rate <= 1:
         raise ValueError("restore_rate must be in [0, 1]")
     rng = random.Random(seed)
@@ -383,11 +389,14 @@ def epsilon_reoptimize(problem: Problem, original: Schedule, disruption: Disrupt
     if repair.schedule is None:
         raise RuntimeError("No feasible repaired timetable was found; the disruption may make the problem "
                            "infeasible (this is not a proof).")
-    n_sessions = len(problem.events)
-    eps_list = sorted(set(int(e) for e in (epsilons if epsilons is not None else default_epsilons(repair.changes, n_sessions))))
-    if any(e < 0 for e in eps_list):
-        raise ValueError("epsilons must be non-negative")
     nb = FeasibleNeighborhood(problem)
+    nb._state(repair.schedule)  # Validate a caller-supplied repair without an uncounted full evaluation.
+    n_sessions = len(problem.events)
+    repair_changes = changed_sessions(problem, original, repair.schedule)
+    eps_values = list(epsilons) if epsilons is not None else default_epsilons(repair_changes, n_sessions)
+    if any(type(e) is not int or e < 0 for e in eps_values):
+        raise ValueError("epsilons must be non-negative integers")
+    eps_list = sorted(set(eps_values))
     scales = objective_scales(problem)
 
     def delta(s: Schedule) -> int:
@@ -395,11 +404,20 @@ def epsilon_reoptimize(problem: Problem, original: Schedule, disruption: Disrupt
 
     levels: list[EpsilonLevel] = []
     carried: list[Schedule] = [repair.schedule]
+    evaluations: dict[Schedule, Evaluation] = {}
     report = progress or (lambda _info: None)
     for level_index, eps in enumerate(eps_list):
         started = perf_counter()
         calls = proposals = rejected = 0
         archive: dict[Schedule, tuple[tuple[float, float, float], int]] = {}
+
+        def retain(s: Schedule, ev: Evaluation) -> None:
+            d = delta(s)
+            if not any(old == ev.objectives and dd <= d or dominates(old, ev.objectives) for old, dd in archive.values()):
+                for other in [o for o, (obj, dd) in archive.items()
+                              if dominates(ev.objectives, obj) or (obj == ev.objectives and d < dd)]:
+                    del archive[other]
+                archive[s] = (ev.objectives, d)
 
         def counted(s: Schedule) -> Individual:
             nonlocal calls
@@ -407,21 +425,28 @@ def epsilon_reoptimize(problem: Problem, original: Schedule, disruption: Disrupt
             ev: Evaluation = evaluate(problem, s)
             if not ev.feasible:  # cannot happen with these operators; kept as an explicit guard
                 raise AssertionError("an operator produced an infeasible timetable")
-            d = delta(s)
-            if not any(old == ev.objectives and dd <= d or dominates(old, ev.objectives) for old, dd in archive.values()):
-                for other in [o for o, (obj, dd) in archive.items()
-                              if dominates(ev.objectives, obj) or (obj == ev.objectives and d < dd)]:
-                    del archive[other]
-                archive[s] = (ev.objectives, d)
+            evaluations[s] = ev
+            retain(s, ev)
             return Individual(s, ev)
 
         seeds = [s for s in dict.fromkeys(carried) if delta(s) <= eps]
-        pop: list[Individual] = []
-        seen: set[Schedule] = set()
+        # Carry every previously checked archive member, even when the archive is
+        # larger than the next population or evaluation budget. Reusing its exact
+        # evaluation preserves nested fronts without spending a new evaluator call.
         for s in seeds:
-            if calls >= budget or len(pop) >= population:
+            if s in evaluations:
+                retain(s, evaluations[s])
+        pop: list[Individual] = []
+        seen: set[Schedule] = set(evaluations)
+        for s in seeds:
+            if len(pop) >= population:
                 break
-            pop.append(counted(s))
+            if s in evaluations:
+                pop.append(Individual(s, evaluations[s]))
+            elif calls < budget:
+                pop.append(counted(s))
+            else:
+                break
             seen.add(s)
         # Fill the population with eps-feasible neighbours of the seeds.
         attempts = 0

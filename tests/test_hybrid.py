@@ -93,3 +93,30 @@ def test_repair_independent_evaluation_and_failure_explicit():
         lambda candidate: Individual(candidate, evaluate(impossible, candidate)), random.Random(10),
     )
     assert not failed.evaluation.feasible
+
+
+def test_repair_does_not_randomly_accept_a_dominated_feasible_candidate(monkeypatch):
+    problem, worse = exchange_example()
+    hybrid = HybridOperators(problem)
+    better = hybrid.local_proposal(worse, random.Random(1), mode=3)
+    original = Individual(better, evaluate(problem, better))
+    candidate = Individual(worse, evaluate(problem, worse))
+    assert original.evaluation.feasible and candidate.evaluation.feasible
+    assert all(a <= b for a, b in zip(original.evaluation.objectives, candidate.evaluation.objectives))
+    assert original.evaluation.objectives != candidate.evaluation.objectives
+    monkeypatch.setattr("timetable.greedy.construct", lambda *args, **kwargs: worse)
+    result = hybrid.repair(original, lambda schedule: candidate, random.Random(1))
+    assert result is original
+
+
+@pytest.mark.parametrize("seed,accept", [(1, True), (2, False)])
+def test_repair_preserves_random_tie_break_for_equal_positive_violation(monkeypatch, seed, accept):
+    problem, schedule = exchange_example()
+    damaged = replace(schedule, placements=(None,) * len(schedule.placements))
+    alternative = replace(damaged, teachers=("F2", *damaged.teachers[1:]))
+    original = Individual(damaged, evaluate(problem, damaged))
+    candidate = Individual(alternative, evaluate(problem, alternative))
+    assert original.evaluation.violation == candidate.evaluation.violation > 0
+    monkeypatch.setattr("timetable.greedy.construct", lambda *args, **kwargs: alternative)
+    result = HybridOperators(problem).repair(original, lambda schedule: candidate, random.Random(seed))
+    assert result is (candidate if accept else original)

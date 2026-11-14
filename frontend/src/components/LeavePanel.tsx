@@ -18,6 +18,7 @@ export default function LeavePanel({ instance, own = false }: { instance: Instan
   const [form, setForm] = useState({ facultyId: instance.faculty[0]?.id ?? '', start: today, end: today, reason: '' });
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const name = (id: string) => instance.faculty.find((f) => f.id === id)?.name ?? id;
 
   const load = useCallback(() => {
@@ -26,7 +27,10 @@ export default function LeavePanel({ instance, own = false }: { instance: Instan
   useEffect(load, [load]);
 
   const add = async () => {
+    if (busy) return;
     setError(null);
+    setMsg(null);
+    setBusy(true);
     try {
       const r = await post<{ lecturesNeedingCover: number; disruption?: { id: number; broken: number } | null }>('/leaves', {
         ...form,
@@ -39,6 +43,22 @@ export default function LeavePanel({ instance, own = false }: { instance: Instan
       load();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (id: number) => {
+    if (busy) return;
+    setError(null);
+    setMsg(null);
+    setBusy(true);
+    try {
+      await del(`/leaves/${id}`);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -56,7 +76,7 @@ export default function LeavePanel({ instance, own = false }: { instance: Instan
                 {!own && <b>{name(l.faculty_id)} · </b>}
                 {pretty(l.start_date)} – {pretty(l.end_date)} {l.reason && <span className="muted">({l.reason})</span>}
               </span>
-              <button className="btn sm ghost" onClick={() => del(`/leaves/${l.id}`).then(load)}>
+              <button className="btn sm ghost" disabled={busy} onClick={() => remove(l.id)}>
                 Remove
               </button>
             </li>
@@ -65,7 +85,7 @@ export default function LeavePanel({ instance, own = false }: { instance: Instan
       )}
       <div className="row">
         {!own && (
-          <select className="input" style={{ width: 'auto' }} value={form.facultyId} onChange={(e) => setForm({ ...form, facultyId: e.target.value })}>
+          <select className="input" aria-label="Teacher on leave" style={{ width: 'auto' }} value={form.facultyId} onChange={(e) => setForm({ ...form, facultyId: e.target.value })}>
             {instance.faculty.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -73,11 +93,11 @@ export default function LeavePanel({ instance, own = false }: { instance: Instan
             ))}
           </select>
         )}
-        <input className="input" style={{ width: 'auto' }} type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
+        <input className="input" aria-label="Leave start date" style={{ width: 'auto' }} type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
         <span className="muted">to</span>
-        <input className="input" style={{ width: 'auto' }} type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
-        <input className="input" style={{ flex: 1, minWidth: 120 }} placeholder="Reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
-        <button className="btn sm" onClick={add}>
+        <input className="input" aria-label="Leave end date" style={{ width: 'auto' }} type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
+        <input className="input" aria-label="Leave reason" style={{ flex: 1, minWidth: 120 }} placeholder="Reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+        <button className="btn sm" disabled={busy} onClick={add}>
           Add leave
         </button>
       </div>

@@ -6,7 +6,8 @@ import SyllabusPanel from '../components/SyllabusPanel';
 
 export default function MyAvailability() {
   const user = useAuth((s) => s.user)!;
-  const { pub } = usePublished();
+  const { pub, error } = usePublished();
+  if (error) return <p className="error-box">{error}</p>;
   if (pub === null) return <p className="muted">Loading…</p>;
   if (pub === 'none') return <p className="muted">No timetable has been published yet.</p>;
   if (!user.facultyId) return <p className="muted">Your account is not linked to a teacher yet; ask the administrator.</p>;
