@@ -81,6 +81,10 @@ CREATE TABLE IF NOT EXISTS requests (
     to_faculty TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', message TEXT NOT NULL DEFAULT '',
     reply TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT
 );
+CREATE TABLE IF NOT EXISTS timetables (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, instance_json TEXT NOT NULL, solution_json TEXT,
+    source TEXT NOT NULL DEFAULT 'blank', created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS disruptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, resource TEXT NOT NULL, slots TEXT NOT NULL DEFAULT '[]',
     source TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', broken INTEGER NOT NULL DEFAULT 0,

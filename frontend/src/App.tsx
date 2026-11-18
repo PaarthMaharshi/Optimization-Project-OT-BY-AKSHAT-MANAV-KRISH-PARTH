@@ -8,6 +8,7 @@ import CalendarPage from './pages/CalendarPage';
 import Requests from './pages/Requests';
 import Manage from './pages/Manage';
 import Disruptions from './pages/Disruptions';
+import Timetables from './pages/Timetables';
 import MyAvailability from './pages/MyAvailability';
 import TimetableView from './pages/TimetableView';
 import Inbox from './components/Inbox';
@@ -30,12 +31,14 @@ const ICONS = {
   mine: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
   manage: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4',
   alert: 'M12 3 2 20h20L12 3zM12 10v4M12 17h.01',
+  edit: 'M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4',
 };
 
 // which pages each role sees, in sidebar order
 const PAGES: { path: string; label: string; icon: keyof typeof ICONS; roles: Role[]; element: JSX.Element }[] = [
   { path: '/', label: 'Overview', icon: 'overview', roles: ['admin'], element: <Dashboard /> },
   { path: '/pareto', label: 'Pareto front', icon: 'pareto', roles: ['admin'], element: <ParetoExplorer /> },
+  { path: '/timetables', label: 'Edit timetables', icon: 'edit', roles: ['admin'], element: <Timetables /> },
   { path: '/designer', label: 'Designer', icon: 'designer', roles: ['admin'], element: <Designer /> },
   { path: '/timetable', label: 'Timetable', icon: 'timetable', roles: ['admin', 'teacher', 'student'], element: <TimetableView /> },
   { path: '/calendar', label: 'Calendar', icon: 'calendar', roles: ['admin', 'teacher', 'student'], element: <CalendarPage /> },

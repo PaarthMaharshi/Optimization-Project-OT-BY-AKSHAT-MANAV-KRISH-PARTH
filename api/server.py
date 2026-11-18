@@ -31,6 +31,7 @@ if str(ROOT / "src") not in sys.path:  # allow running without `pip install -e .
 
 from fastapi import Depends, FastAPI, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from api.bridge import (DEFAULT_RUN, SCENARIO_LABELS, apply_constraints, problem_from_any,  # noqa: E402
@@ -39,9 +40,13 @@ from api.campus.db import connect, init_db, load_published, now  # noqa: E402
 from api.campus.routes import ADMIN, constraint_overrides  # noqa: E402
 from api.campus.routes import router as campus_router  # noqa: E402
 from api.disruptions import router as disruptions_router  # noqa: E402
+from api.timetables import load_saved_instance, router as timetables_router  # noqa: E402
 from api.optimizer import METHOD, NoFeasibleTimetable, RunConfig, run_optimizer  # noqa: E402
 
 app = FastAPI(title="Clockwork timetable optimiser", version="1.0.0")
+# Compress JSON responses: run results shrink about 10x, which is faster and keeps them far below the size at which
+# uvicorn on Windows can stall a response sent over a "Connection: close" request.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
@@ -52,6 +57,7 @@ app.add_middleware(
 init_db()  # creates data/clockwork.db and the admin/admin superuser on first start
 app.include_router(campus_router)
 app.include_router(disruptions_router)
+app.include_router(timetables_router)
 
 _executor = ThreadPoolExecutor(max_workers=2)
 _jobs: dict[str, dict] = {}
@@ -61,7 +67,7 @@ MAX_RUNS_STORED = 10
 
 
 class RunRequest(BaseModel):
-    scenario: str = Field("demo", description="demo | small | medium | large | published | custom")
+    scenario: str = Field("demo", description="demo | small | medium | large | published | custom | saved")
     instanceSeed: int = 1
     seed: int = 0
     budget: int = Field(360, ge=10, le=100_000, description="full evaluations (the validation study's budget unit)")
@@ -70,6 +76,7 @@ class RunRequest(BaseModel):
     compareBaseline: bool = Field(True, description="also run the repeated greedy baseline")
     advancedBenchmark: bool = Field(False, description="also run MOEA/D, AMOSA and standard NSGA-II (slower)")
     instance: dict | None = Field(None, description="custom instance (website or optimizer JSON format)")
+    timetableId: int | None = Field(None, description="saved timetable to optimise (scenario 'saved')")
 
 
 @app.get("/api/health")
@@ -130,6 +137,10 @@ def _problem_for(req: RunRequest):
         if not pub:
             raise HTTPException(409, "Nothing is published yet.")
         return web_to_problem(pub["instance"])
+    if req.scenario == "saved":
+        if req.timetableId is None:
+            raise HTTPException(400, "Choose a saved timetable.")
+        return web_to_problem(load_saved_instance(req.timetableId))
     if req.scenario == "custom":
         if not req.instance:
             raise HTTPException(400, "Upload an instance JSON for a custom run.")
