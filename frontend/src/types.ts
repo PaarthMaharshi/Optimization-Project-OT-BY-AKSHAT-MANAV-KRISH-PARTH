@@ -87,7 +87,7 @@ export interface Solution {
   metrics?: Record<string, number>; // practical metrics from the backend
 }
 
-export type Scenario = 'demo' | 'small' | 'medium' | 'large' | 'published' | 'custom';
+export type Scenario = 'demo' | 'small' | 'medium' | 'large' | 'published' | 'custom' | 'saved';
 
 /** Settings of one run of the optimizer. */
 export interface RunParams {
@@ -99,6 +99,7 @@ export interface RunParams {
   searchSeconds: number | null; // wall-time cap; null = evaluations only
   compareBaseline: boolean; // also run the repeated greedy baseline
   advancedBenchmark: boolean; // also run MOEA/D, AMOSA and standard NSGA-II (slower)
+  timetableId?: number | null; // saved timetable to optimise (scenario 'saved')
 }
 
 export interface MultiConvergencePoint {

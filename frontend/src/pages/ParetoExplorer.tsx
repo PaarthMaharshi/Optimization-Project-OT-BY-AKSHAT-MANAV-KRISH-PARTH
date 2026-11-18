@@ -16,21 +16,21 @@ interface AxisMeta {
 
 const AXES: Record<keyof Objectives, AxisMeta> = {
   f1: {
-    short: 'f1 · Idle Gaps',
+    short: 'Idle periods',
     name: 'Student & Faculty Internal Idle Gaps',
     unit: 'free periods',
     desc: 'Total internal free teaching periods for students + 0.5 × faculty free periods (mandatory lunch excluded). Lower is better.',
     fmt: (v) => v.toFixed(1),
   },
   f2: {
-    short: 'f2 · Room Wastage',
+    short: 'Empty seats',
     name: 'Room Seat Wastage Fraction',
     unit: '% empty seats',
     desc: 'Duration-weighted fraction of unused seats while classrooms are occupied. Lower is better (higher seat fit).',
     fmt: (v) => `${(v * 100).toFixed(1)}%`,
   },
   f3: {
-    short: 'f3 · Workload Imbalance',
+    short: 'Workload imbalance',
     name: 'Faculty Teaching Load Imbalance',
     unit: 'std dev',
     desc: 'Population standard deviation of (weekly teaching load / weekly allowance). Lower is better (fairer workload).',
@@ -114,7 +114,7 @@ function ScatterPlot({
   const sx = (v: number) => m.l + ((v - x0) / Math.max(x1 - x0, 1e-6)) * (W - m.l - m.r);
   const sy = (v: number) => H - m.b - ((v - y0) / Math.max(y1 - y0, 1e-6)) * (H - m.t - m.b);
 
-  const pickOf = (s: Solution) => (Object.keys(picks) as PickKind[]).find((k) => picks[k].id === s.id);
+  const pickOf = (s: Solution) => (['knee', 'gaps', 'rooms', 'balance'] as PickKind[]).find((k) => picks[k].id === s.id);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -138,12 +138,12 @@ function ScatterPlot({
 
         {/* Horizontal (X-Axis) Title */}
         <text x={(m.l + W - m.r) / 2} y={H - 12} fontSize="11" fill="#3f3b35" textAnchor="middle" fontWeight="700">
-          X: {AXES[xk].short} ({AXES[xk].unit}) ← Better
+          {AXES[xk].short} ({AXES[xk].unit}) · lower is better
         </text>
 
         {/* Vertical (Y-Axis) Title */}
         <text transform={`translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)`} fontSize="11" fill="#3f3b35" textAnchor="middle" fontWeight="700">
-          Y: {AXES[yk].short} ({AXES[yk].unit}) ← Better
+          {AXES[yk].short} ({AXES[yk].unit}) · lower is better
         </text>
 
         {/* 1. Greedy Points (Amber Rhombus) */}
@@ -240,20 +240,107 @@ function ScatterPlot({
                 opacity={s.onFront ? 1 : 0.65}
               >
                 <title>
-                  Memetic NSGA-II ({s.id}) — {pk ? pickLabels[pk].title : s.onFront ? 'Pareto optimal' : 'Dominated'}:
-                  f1={s.objectives.f1.toFixed(1)}, f2={(s.objectives.f2 * 100).toFixed(1)}%, f3={s.objectives.f3.toFixed(3)}
+                  {s.id}: {pk === 'knee' ? 'Final timetable (best compromise)' : pk ? pickLabels[pk].title : s.onFront ? 'optimal timetable' : 'beaten by another timetable'} ·{' '}
+                  {s.objectives.f1.toFixed(1)} idle periods, {(s.objectives.f2 * 100).toFixed(1)}% empty seats, imbalance {s.objectives.f3.toFixed(3)}
                 </title>
               </circle>
+              {pk === 'knee' && (
+                <text x={sx(s.objectives[xk]) + 10} y={sy(s.objectives[yk]) - 9} fontSize="11" fontWeight="700" fill="#3f3b35">
+                  ★ Final
+                </text>
+              )}
             </g>
           );
         })}
       </svg>
 
-      {/* Explicit Axis Explanation Banner */}
-      <div style={{ padding: '8px 12px', background: '#f5efe4', borderRadius: 6, fontSize: 11, marginTop: 4, lineHeight: 1.4 }}>
-        <div><b>X-Axis:</b> {AXES[xk].name} · {AXES[xk].desc}</div>
-        <div style={{ marginTop: 2 }}><b>Y-Axis:</b> {AXES[yk].name} · {AXES[yk].desc}</div>
-      </div>
+      <p className="tiny" style={{ margin: '4px 0 0' }}>
+        Dots further <b>down and to the left</b> are better on both of these goals.
+      </p>
+      <details style={{ fontSize: 11, marginTop: 4 }}>
+        <summary style={{ cursor: 'pointer', color: '#6b655c' }}>Exact definitions</summary>
+        <div style={{ padding: '6px 10px', background: '#f5efe4', borderRadius: 6, marginTop: 4, lineHeight: 1.4 }}>
+          <div>
+            <b>{AXES[xk].short}:</b> {AXES[xk].name}. {AXES[xk].desc}
+          </div>
+          <div style={{ marginTop: 2 }}>
+            <b>{AXES[yk].short}:</b> {AXES[yk].name}. {AXES[yk].desc}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+const num = (v: number) => (v % 1 ? v.toFixed(1) : String(v));
+// "3–7", or just "3 (all the same)" when every option has the same value
+const span = (a: string, b: string) => (a === b ? `${a} (the same in all)` : `${a}–${b}`);
+const fmtObj = (o: Objectives) =>
+  `${num(o.f1)} idle periods, ${(o.f2 * 100).toFixed(1)}% empty seats, workload imbalance ${o.f3.toFixed(3)}`;
+
+/** Plain-language guide to the charts and a written summary of the trade-off found in this run. */
+function HowToRead({ front, picks, hasGreedy }: { front: Solution[]; picks: Record<PickKind, Solution>; hasGreedy: boolean }) {
+  const distinct = new Set(front.map((s) => `${s.objectives.f1}|${s.objectives.f2}|${s.objectives.f3}`)).size;
+  const range = (k: keyof Objectives) => [Math.min(...front.map((s) => s.objectives[k])), Math.max(...front.map((s) => s.objectives[k]))];
+  const [g0, g1] = front.length ? range('f1') : [0, 0];
+  const [w0, w1] = front.length ? range('f2') : [0, 0];
+  const [b0, b1] = front.length ? range('f3') : [0, 0];
+  return (
+    <div className="grid split" style={{ gap: 16, marginBottom: 18 }}>
+      <section className="card" style={{ padding: 16 }}>
+        <h3 style={{ marginTop: 0 }}>How to read these charts</h3>
+        <ul className="tiny" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>
+            Every dot is one complete, clash-free <b>timetable</b> found by the optimiser.
+          </li>
+          <li>
+            The three goals are <b>fewer idle periods</b>, <b>fewer empty seats</b> and a <b>fairer teaching load</b>. Each chart shows two of them:
+            dots further down and to the left are better on both.
+          </li>
+          <li>
+            Usually no timetable is best at everything at once, so the optimiser keeps every timetable that no other timetable beats on all goals.
+            Moving from one dot to the next shows what you gain on one goal and give up on another.
+          </li>
+          <li>
+            <b>★ Final</b> marks the best compromise, the timetable shown on the Overview. Click any dot to inspect that timetable.
+          </li>
+          {hasGreedy && <li>Diamonds are the best timetables of the simple greedy method, for comparison.</li>}
+        </ul>
+      </section>
+      <section className="card" style={{ padding: 16, borderLeft: '6px solid var(--accent)' }}>
+        <h3 style={{ marginTop: 0 }}>What this run found</h3>
+        {!front.length ? (
+          <p className="tiny" style={{ margin: 0 }}>
+            Run the optimiser on the Overview to see the trade-offs.
+          </p>
+        ) : distinct === 1 ? (
+          <p className="tiny" style={{ margin: 0, lineHeight: 1.7 }}>
+            <b>No trade-off here:</b> one timetable is the best on all three goals at the same time ({fmtObj(front[0].objectives)}), so every chart
+            shows a single dot and that timetable is the final one. Larger or tighter timetables usually give several options; then these charts show
+            what you gain on one goal by giving up on another.
+          </p>
+        ) : (
+          <ul className="tiny" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+            <li>
+              <b>{distinct} optimal timetables.</b> Across them: {span(num(g0), num(g1))} idle periods,{' '}
+              {span((w0 * 100).toFixed(1), (w1 * 100).toFixed(1))}% empty seats, workload imbalance {span(b0.toFixed(3), b1.toFixed(3))}.
+            </li>
+            <li>
+              <b>Fewest idle periods</b> ({picks.gaps.id}): {fmtObj(picks.gaps.objectives)}.
+            </li>
+            <li>
+              <b>Fewest empty seats</b> ({picks.rooms.id}): {fmtObj(picks.rooms.objectives)}.
+            </li>
+            <li>
+              <b>Fairest teaching load</b> ({picks.balance.id}): {fmtObj(picks.balance.objectives)}.
+            </li>
+            <li>
+              <b>★ Final, best compromise</b> ({picks.knee.id}): {fmtObj(picks.knee.objectives)}. It is the closest to being best on all three goals at
+              once.
+            </li>
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -322,7 +409,7 @@ export default function ParetoExplorer() {
     <>
       <div className="page-head">
         <div>
-          <h1>Multi-Objective Pareto Trade-Off Explorer</h1>
+          <h1>Trade-offs between the best timetables</h1>
           <p>
             {stats ? (
               <>
@@ -339,9 +426,11 @@ export default function ParetoExplorer() {
         </div>
         <div className="spacer" />
         <label className="check" style={{ fontSize: 13 }}>
-          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show dominated candidate solutions
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Also show timetables that are beaten on every goal
         </label>
       </div>
+
+      <HowToRead front={front} picks={picks} hasGreedy={fronts.greedy.length > 0} />
 
       {/* Algorithm Legend & Filter Toggle Bar */}
       <div className="card" style={{ padding: '12px 16px', marginBottom: 18, background: '#faf6ee', border: '1px solid #e3d9c6' }}>
@@ -370,7 +459,7 @@ export default function ParetoExplorer() {
                 <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: algo.shape === 'circle' ? 99 : 2, background: algo.color }} />
                 <span>
                   {algo.name}
-                  {comparisonRows.find((r) => r.id === algo.id)?.status === 'not_run' && ' (not run)'}
+                  {comparisonRows.find((r) => r.id === algo.id)?.status === 'not_run' && ' (not run: tick “Advanced benchmark”)'}
                 </span>
               </label>
             ))}
@@ -380,10 +469,11 @@ export default function ParetoExplorer() {
 
       {/* Representative Picks Legend */}
       <div className="row" style={{ marginBottom: 14, gap: 16 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#6b655c' }}>Special Picks (Memetic Front):</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#6b655c' }}>Recommended options:</span>
         {(Object.keys(pickLabels) as PickKind[]).map((k) => (
           <span key={k} className="row tiny" style={{ gap: 6, color: 'var(--ink-2)' }}>
-            <i style={{ width: 10, height: 10, borderRadius: 99, background: pickColor[k], display: 'inline-block' }} /> {pickLabels[k].title}
+            <i style={{ width: 10, height: 10, borderRadius: 99, background: pickColor[k], display: 'inline-block' }} />{' '}
+            {k === 'knee' ? '★ Final timetable (best compromise)' : pickLabels[k].title}
           </span>
         ))}
       </div>

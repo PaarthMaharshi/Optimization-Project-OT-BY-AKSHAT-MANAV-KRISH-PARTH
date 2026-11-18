@@ -57,6 +57,8 @@ interface State {
   customInstance: unknown | null; // uploaded instance JSON for scenario 'custom'
   customName: string;
   running: boolean;
+  resultsReady: boolean; // an optimiser run finished in this browser session (the Overview shows its results)
+  lastRunAt: number | null; // set when a run finishes; the Overview scrolls to the Final timetable
   progress: RunProgress | null;
   runError: string | null;
   selectedId: string;
@@ -92,9 +94,11 @@ const kneeOf = (sols: Solution[]) => {
   return front.length ? representativePicks(front).knee.id : sols[0]?.id ?? '';
 };
 
+// Results are kept for the browser session only: a refresh keeps them, a new visit starts with the current timetable.
 function loadSavedRun(): RunResult | null {
   try {
-    const raw = localStorage.getItem(RUN_KEY);
+    localStorage.removeItem(RUN_KEY); // results were kept here by earlier versions
+    const raw = sessionStorage.getItem(RUN_KEY);
     return raw ? (JSON.parse(raw) as RunResult) : null;
   } catch {
     return null;
@@ -103,11 +107,11 @@ function loadSavedRun(): RunResult | null {
 
 function saveRun(r: RunResult) {
   try {
-    localStorage.setItem(RUN_KEY, JSON.stringify(r));
+    sessionStorage.setItem(RUN_KEY, JSON.stringify(r));
   } catch {
-    // Too big for localStorage (large instances): keep only the Pareto front.
+    // Too big for session storage (large instances): keep only the Pareto front.
     try {
-      localStorage.setItem(RUN_KEY, JSON.stringify({ ...r, solutions: r.solutions.filter((s) => s.onFront) }));
+      sessionStorage.setItem(RUN_KEY, JSON.stringify({ ...r, solutions: r.solutions.filter((s) => s.onFront) }));
     } catch {
       /* give up silently; the run stays in memory */
     }
@@ -123,8 +127,8 @@ const viewExists = (inst: Instance, view: State['view']) =>
 const saved = loadSavedRun();
 const demoSolutions = generateSolutions(mockInstance, 7);
 const initialData = saved
-  ? { instance: saved.instance, solutions: saved.solutions, baseline: saved.baseline, stats: saved.stats, runId: saved.runId ?? null, source: 'backend' as DataSource }
-  : { instance: mockInstance, solutions: demoSolutions, baseline: null, stats: null, runId: null, source: 'demo' as DataSource };
+  ? { instance: saved.instance, solutions: saved.solutions, baseline: saved.baseline, stats: saved.stats, runId: saved.runId ?? null, source: 'backend' as DataSource, resultsReady: true }
+  : { instance: mockInstance, solutions: demoSolutions, baseline: null, stats: null, runId: null, source: 'demo' as DataSource, resultsReady: false };
 
 export const defaultTheme: ThemeSettings = {
   palette: { ...palettes[0] },
@@ -162,6 +166,7 @@ export const useStore = create<State>()(
       customInstance: null,
       customName: '',
       running: false,
+      lastRunAt: null,
       progress: null,
       runError: null,
       selectedId: kneeOf(initialData.solutions),
@@ -193,6 +198,8 @@ export const useStore = create<State>()(
             view: { kind: 'group', entityId: mockInstance.groups[0].id },
             blockNotes: {},
             running: false,
+            lastRunAt: Date.now(),
+            resultsReady: true,
             progress: null,
             runError: 'The optimiser server is not running, so this is offline demo data (not optimiser output). Start it with: python -m uvicorn api.server:app --port 8000',
           });
@@ -214,6 +221,8 @@ export const useStore = create<State>()(
             blockNotes: keepView ? get().blockNotes : {},
             running: false,
             progress: null,
+            lastRunAt: Date.now(),
+            resultsReady: true,
           });
         } catch (e) {
           set({ running: false, progress: null, runError: e instanceof Error ? e.message : String(e) });
@@ -236,6 +245,7 @@ export const useStore = create<State>()(
           selectedId: kneeOf(res.solutions),
           view: keepView ? get().view : { kind: 'group', entityId: res.instance.groups[0].id },
           blockNotes: keepView ? get().blockNotes : {},
+          resultsReady: true,
         });
       },
       select: (id) => set({ selectedId: id }),

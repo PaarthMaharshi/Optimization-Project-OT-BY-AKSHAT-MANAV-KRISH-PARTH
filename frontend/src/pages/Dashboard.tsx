@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelectedSolution, useStore } from '../store';
 import { pickLabels, representativePicks, type PickKind } from '../mock/solutions';
@@ -7,6 +7,10 @@ import { fetchScenarios } from '../api';
 import { api } from '../auth';
 import TimetablePoster from '../components/TimetablePoster';
 import PosterFrame from '../components/PosterFrame';
+import FinalTimetable from '../components/FinalTimetable';
+import StartTimetable from '../components/StartTimetable';
+import { scrollToId } from '../lib/scroll';
+import { listTimetables, type TimetableSummary } from '../timetables';
 import { aspects } from '../themes/designs';
 
 export function ObjectiveBars({ s, front }: { s: Solution; front: Solution[] }) {
@@ -133,7 +137,8 @@ function Convergence({ stats }: { stats: RunStats }) {
 
   const feasiblePoints = allPoints.filter((p) => p.hypervolume > 0.1);
   const lowestFeasibleHv = feasiblePoints.length ? Math.min(...feasiblePoints.map((p) => p.hypervolume)) : 0.8;
-  const highestHv = Math.max(...allPoints.map((p) => p.hypervolume), 1.0);
+  // Scales come from this run's measured values (not a fixed 1.0), so every instance gets a meaningful view.
+  const highestHv = Math.max(...allPoints.map((p) => p.hypervolume));
 
   // In Focus View, zoom into active convergence band (e.g. 0.70 to 1.05)
   // The narrower range separates curves whose hypervolumes differ only in the second or third decimal.
@@ -156,8 +161,9 @@ function Convergence({ stats }: { stats: RunStats }) {
   const getSampleAt = (pts: { evaluations: number; hypervolume: number }[], targetEv: number) =>
     [...pts].reverse().find((p) => p.evaluations <= targetEv);
 
-  // Helper to calculate evaluations needed to reach quality milestone (~0.95 HV)
-  const targetMilestone = Math.min(0.95, +(highestHv * 0.95).toFixed(2));
+  // Milestone: 99% of the best final hypervolume measured in this run (instance-specific, never a fixed number).
+  const bestFinal = Math.max(0, ...curves.filter((c) => c.status === 'ok' && c.finalHv != null).map((c) => c.finalHv!));
+  const targetMilestone = +((bestFinal || highestHv) * 0.99).toFixed(3);
   const getEvalsToReach = (pts: { evaluations: number; hypervolume: number }[]) => {
     const pt = pts.find((p) => p.hypervolume >= targetMilestone);
     return pt ? pt.evaluations : null;
@@ -190,8 +196,10 @@ function Convergence({ stats }: { stats: RunStats }) {
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-2, #64748b)' }}>
-          Measured hypervolume of each algorithm run with this budget ({plotted.length} of {curves.length} run)
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-2, #64748b)', maxWidth: 520 }}>
+          How quickly each method finds good timetables: a line rises when a better set of timetables is found (hypervolume, higher is
+          better). Measured in this run for {plotted.length} of {curves.length} methods
+          {curves.some((c) => c.status === 'not_run') && '; the others only run when “Advanced benchmark” is ticked in the advanced settings'}.
         </span>
         <div
           style={{
@@ -303,7 +311,7 @@ function Convergence({ stats }: { stats: RunStats }) {
         }}
       >
         <span style={{ fontWeight: 600, color: 'var(--ink, #1e293b)' }}>
-          Evaluations needed to reach HV ≥ {targetMilestone.toFixed(2)}:
+          Evaluations needed to reach 99% of the best result (HV ≥ {targetMilestone.toFixed(3)}):
         </span>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {curves.map((c) => {
@@ -572,18 +580,22 @@ function Convergence({ stats }: { stats: RunStats }) {
 }
 
 function RunPanel() {
-  const { runParams, setRunParams, runOptimizer, running, progress, runError, source, stats, customName, setCustomInstance, loadLatestRun } = useStore();
+  const { runParams, setRunParams, runOptimizer, running, progress, runError, source, stats, customName, setCustomInstance } = useStore();
   const [scenarios, setScenarios] = useState<ScenarioInfo[]>(FALLBACK_SCENARIOS);
   const [blocked, setBlocked] = useState<number | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<TimetableSummary[]>([]);
 
   useEffect(() => {
     fetchScenarios().then(setScenarios).catch(() => undefined);
-    loadLatestRun();
+    listTimetables()
+      .then((rows) => setSaved(rows.filter((r) => r.courses > 0)))
+      .catch(() => setSaved([]));
+    // Results appear only after a run in this session; the page starts with the current timetable.
     api<Record<string, { unavailable: number[]; maxDaily: number | null }>>('/constraints')
       .then((c) => setBlocked(Object.values(c).filter((x) => x.unavailable.length || x.maxDaily).length))
       .catch(() => setBlocked(null));
-  }, [loadLatestRun]);
+  }, []);
 
   const pickScenario = (s: ScenarioInfo) => setRunParams({ scenario: s.id, budget: s.budget, searchSeconds: s.seconds });
   // Published / uploaded instances use the study's budget for the preset closest in size (number of classes).
@@ -626,7 +638,7 @@ function RunPanel() {
   const synthetic = ['small', 'medium', 'large'].includes(runParams.scenario);
 
   return (
-    <section className="card run-panel" style={{ marginBottom: 22 }}>
+    <section id="optimiser" className="card run-panel" style={{ marginBottom: 22, scrollMarginTop: 16 }}>
       <div className="run-grid">
         <div className="run-controls">
           <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -664,6 +676,26 @@ function RunPanel() {
                 <b>Upload JSON</b>
                 <span>{customName || 'website or CLI format'}</span>
                 <input type="file" accept=".json,application/json" hidden disabled={running} onChange={(e) => onFile(e.target.files?.[0])} />
+              </label>
+              <label className={`scenario ${runParams.scenario === 'saved' ? 'on' : ''}`} title="Optimise one of your saved timetables (Edit timetables)">
+                <b>Saved timetable</b>
+                <select
+                  className="input"
+                  style={{ padding: '2px 4px', fontSize: 12 }}
+                  disabled={running || !saved.length}
+                  value={runParams.scenario === 'saved' && runParams.timetableId ? runParams.timetableId : ''}
+                  onChange={(e) => {
+                    const row = saved.find((r) => r.id === Number(e.target.value));
+                    if (row) setRunParams({ scenario: 'saved', timetableId: row.id, ...sizeDefaults(row.classes) });
+                  }}
+                >
+                  <option value="">{saved.length ? 'choose…' : 'none yet'}</option>
+                  {saved.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.classes} classes)
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             {fileError && <div className="error-box">{fileError}</div>}
@@ -734,7 +766,12 @@ function RunPanel() {
             )}
           </p>
           <div className="row">
-            <button className="btn accent" onClick={runOptimizer} disabled={running || (runParams.scenario === 'custom' && !customName)}>
+            <button
+              id="run-optimiser-btn"
+              className="btn accent"
+              onClick={runOptimizer}
+              disabled={running || (runParams.scenario === 'custom' && !customName) || (runParams.scenario === 'saved' && !runParams.timetableId)}
+            >
               {running ? <span className="spinner" /> : '▶'} {running ? 'Optimising…' : 'Run optimiser'}
             </button>
             {running && progress && (
@@ -824,8 +861,22 @@ function DisruptionBanner() {
 }
 
 export default function Dashboard() {
-  const { solutions, select, selectedId, theme, view, decorations, blockNotes, instance: inst } = useStore();
+  const { solutions, select, selectedId, theme, view, decorations, blockNotes, instance: inst, lastRunAt, resultsReady } = useStore();
   const selected = useSelectedSolution();
+  const [flash, setFlash] = useState(false);
+  const seenRun = useRef(lastRunAt);
+  // When a run finishes, bring the new Final timetable into view and highlight it briefly.
+  useEffect(() => {
+    if (!lastRunAt || lastRunAt === seenRun.current) return;
+    seenRun.current = lastRunAt;
+    const cancelScroll = scrollToId('final-timetable');
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 2600);
+    return () => {
+      cancelScroll();
+      clearTimeout(t);
+    };
+  }, [lastRunAt]);
   const nav = useNavigate();
   const front = useMemo(() => solutions.filter((s) => s.onFront), [solutions]);
   const picks = useMemo(() => representativePicks(front), [front]);
@@ -842,24 +893,38 @@ export default function Dashboard() {
     <>
       <div className="page-head">
         <p style={{ marginTop: 0 }}>
-          Clash-free timetables trading off idle gaps, room wastage and workload balance. Pick one of the recommended
-          timetables, explore the full Pareto front, then style it in the Designer.
+          {resultsReady ? (
+            <>
+              Your current timetable is at the top, the optimiser below it, and the optimised results (the final timetable and the other
+              recommended options) below the optimiser. Edit or add timetables in <Link to="/timetables">Edit timetables</Link>.
+            </>
+          ) : (
+            <>
+              Your current timetable is shown below. Run the optimiser to find the best clash-free timetable; the final timetable and the other
+              recommended options appear here when it finishes.
+            </>
+          )}
         </p>
       </div>
 
       <DisruptionBanner />
+      <StartTimetable />
       <RunPanel />
+      {resultsReady && <FinalTimetable highlight={flash} />}
 
-      <div className="grid grid-4" style={{ marginBottom: 22 }}>
-        {tiles.map((s) => (
-          <div key={s.label} className="card stat">
-            <div className="dot" style={{ background: s.bg }} />
-            <b>{s.n}</b>
-            <span>{s.label}</span>
-          </div>
-        ))}
-      </div>
+      {resultsReady && (
+        <div className="grid grid-4" style={{ marginBottom: 22 }}>
+          {tiles.map((s) => (
+            <div key={s.label} className="card stat">
+              <div className="dot" style={{ background: s.bg }} />
+              <b>{s.n}</b>
+              <span>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
+      {resultsReady && (
       <div className="grid split">
         <section>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
@@ -869,14 +934,19 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="grid grid-2">
-            {(Object.keys(pickLabels) as PickKind[]).map((k) => {
+            {(['knee', ...(Object.keys(pickLabels) as PickKind[]).filter((x) => x !== 'knee')] as PickKind[]).map((k) => {
               const s = picks[k];
               const on = s.id === selectedId;
+              const isFinal = k === 'knee';
               return (
-                <div key={k} className="card pick" style={on ? { boxShadow: '0 0 0 2px var(--ink), var(--shadow)' } : undefined}>
+                <div
+                  key={k}
+                  className={`card pick ${isFinal ? 'final-pick' : ''}`}
+                  style={on ? { boxShadow: '0 0 0 2px var(--ink), var(--shadow)' } : undefined}
+                >
                   <div className="row" style={{ justifyContent: 'space-between' }}>
-                    <h3>{pickLabels[k].title}</h3>
-                    <span className="chip">{s.id}</span>
+                    <h3>{isFinal ? '★ Final timetable (best compromise)' : pickLabels[k].title}</h3>
+                    <span className={`chip ${isFinal ? 'accent' : ''}`}>{s.id}</span>
                   </div>
                   <span className="tiny" style={{ marginTop: -6 }}>
                     {pickLabels[k].blurb}
@@ -907,7 +977,7 @@ export default function Dashboard() {
 
         <section className="card tape" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <h2>Preview</h2>
+            <h2>Preview of the selected option</h2>
             <Link to="/designer" className="btn sm">
               Customise
             </Link>
@@ -917,6 +987,7 @@ export default function Dashboard() {
           </PosterFrame>
         </section>
       </div>
+      )}
     </>
   );
 }

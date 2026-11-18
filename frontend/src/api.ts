@@ -54,9 +54,22 @@ export async function optimise(params: RunParams, onProgress: (p: RunProgress) =
   const { runId } = await json<{ runId: string }>(
     await fetch(`${BASE}/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify(body) }),
   );
+  let failures = 0;
   for (;;) {
     await new Promise((r) => setTimeout(r, 500));
-    const st = await json<{ status: string; progress?: RunProgress; result?: RunResult; error?: string }>(await fetch(`${BASE}/runs/${runId}`, { headers: authHeader() }));
+    // A poll that does not answer within 20 s is abandoned and retried, so one stalled request cannot freeze the page.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    let st: { status: string; progress?: RunProgress; result?: RunResult; error?: string };
+    try {
+      st = await json(await fetch(`${BASE}/runs/${runId}`, { headers: authHeader(), signal: ctrl.signal }));
+      failures = 0;
+    } catch (e) {
+      if (++failures >= 5) throw e instanceof Error && e.name === 'AbortError' ? new Error('The optimiser server stopped answering.') : e;
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
     if (st.progress) onProgress(st.progress);
     if (st.status === 'done' && st.result) return st.result;
     if (st.status === 'error') throw new Error(st.error ?? 'Optimiser failed');

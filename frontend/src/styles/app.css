@@ -350,3 +350,20 @@ code { background: var(--paper-2); padding: 1px 6px; border-radius: 6px; }
   .inbox { left: 16px; top: 70px; bottom: auto; }
   .account-panel { bottom: auto; top: 44px; right: 0; left: auto; }
 }
+
+/* Final timetable (Overview) */
+.final-card { border: 2px solid var(--accent); box-shadow: 4px 4px 0 var(--accent), var(--shadow); scroll-margin-top: 16px; }
+.final-card.flash { animation: final-flash 2.4s ease-out; }
+@keyframes final-flash { 0% { box-shadow: 0 0 0 10px var(--accent-soft), 4px 4px 0 var(--accent); } 100% { box-shadow: 4px 4px 0 var(--accent), var(--shadow); } }
+.card.pick.final-pick { border: 2px solid var(--accent); background: linear-gradient(180deg, var(--accent-soft), var(--card) 55%); }
+.scenario-row { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.multipick { position: relative; }
+.multipick > summary { list-style: none; }
+
+/* "This timetable can be optimised" prompt: subtle, gently breathing highlight */
+.optimise-hint { padding: 14px 16px; border-radius: 14px; background: linear-gradient(135deg, var(--accent-soft), var(--card) 75%); border: 1.5px dashed var(--accent); animation: hint-breathe 3.2s ease-in-out infinite; }
+@keyframes hint-breathe { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 5px var(--accent-soft); } }
+@media (prefers-reduced-motion: reduce) { .optimise-hint { animation: none; } }
+.optimise-hint.done { animation: none; border-style: solid; border-color: var(--sage); background: linear-gradient(135deg, var(--sage-soft), var(--card) 75%); }
+#run-optimiser-btn.pulse { animation: run-pulse 1s ease-in-out 3; }
+@keyframes run-pulse { 0%, 100% { transform: scale(1); box-shadow: 3px 3px 0 var(--ink); } 50% { transform: scale(1.06); box-shadow: 0 0 0 8px var(--accent-soft), 3px 3px 0 var(--ink); } }
