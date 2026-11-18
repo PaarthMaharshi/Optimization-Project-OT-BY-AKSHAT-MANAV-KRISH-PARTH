@@ -1,5 +1,20 @@
 # Final presentation
 
+## Evaluation presentation
+
+The **10-slide presentation for 19 November 2026** covers the problem, objectives,
+feasibility-preserving memetic method, application workflow, validation, results
+and final timetable. It is based on the final technical report and includes a
+capture of the working Clockwork frontend.
+
+- [Download the editable PowerPoint](OT_Project_Presentation.pptx).
+- [View or download the PDF](OT_Project_Presentation.pdf).
+
+Every PowerPoint slide contains speaker notes. The suggested talk takes 8–10
+minutes, followed by a two-minute live demo described in the notes for slide 9.
+
+## Extended research presentation
+
 The presentation contains **23 slides: 18 main slides and 5 backups**, including *Supplementary methods and website* and *Group 14 recorded contributions*. The PPTX, PDF, `preview.png`, Markdown slides, presenter notes, evidence hashes and build checks were rebuilt together on 2026-11-14. All 23 slides have speaker notes; the visible cover roster, contribution evidence, PDF text and page bounds are checked during the build, and the rendered contact sheet was inspected.
 Suggested duration: 15–18 minutes plus the optional short live demonstration.
 It presents the final **mutation-only feasible memetic NSGA-II**, the completed
