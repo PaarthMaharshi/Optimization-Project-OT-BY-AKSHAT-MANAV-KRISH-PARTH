@@ -27,7 +27,7 @@ export const GOOGLE_FONTS_URL =
     'Sniglet:wght@400;800',
     'Merriweather:wght@400;700',
     'Playfair+Display:ital,wght@0,600;0,700;1,600',
-    'Montserrat:wght@400;600;700',
+    'Montserrat:wght@400;600;700;800',
     'Great+Vibes',
     'Inter:wght@400;600;700',
     'Caveat:wght@500;700',

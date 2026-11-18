@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import StatNumber from './StatNumber';
 import { useNavigate } from 'react-router-dom';
 import { post } from '../auth';
 import { useStore } from '../store';
@@ -97,19 +98,19 @@ export default function FinalTimetable({ highlight }: { highlight: boolean }) {
             <div className="section-title">What this timetable gives you</div>
             <div className="mini-stats">
               <div>
-                <b>{m.student_gaps ?? final.objectives.f1}</b>
+                <b><StatNumber value={m.student_gaps ?? final.objectives.f1} /></b>
                 <span>idle periods for students per week (all classes)</span>
               </div>
               <div>
-                <b>{m.room_utilization != null ? `${(m.room_utilization * 100).toFixed(0)}%` : `${((1 - final.objectives.f2) * 100).toFixed(0)}%`}</b>
+                <b><StatNumber value={Math.round((m.room_utilization != null ? m.room_utilization : 1 - final.objectives.f2) * 100)} suffix="%" /></b>
                 <span>of seats filled in the rooms used</span>
               </div>
               <div>
-                <b>{m.max_faculty_daily_load ?? '—'}</b>
+                <b><StatNumber value={m.max_faculty_daily_load} /></b>
                 <span>most periods any teacher has in one day</span>
               </div>
               <div>
-                <b>{final.objectives.f3.toFixed(3)}</b>
+                <b><StatNumber value={final.objectives.f3} decimals={3} /></b>
                 <span>workload imbalance between teachers (0 = equal)</span>
               </div>
             </div>

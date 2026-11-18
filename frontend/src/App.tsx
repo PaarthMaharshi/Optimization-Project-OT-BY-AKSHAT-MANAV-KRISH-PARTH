@@ -13,6 +13,12 @@ import MyAvailability from './pages/MyAvailability';
 import TimetableView from './pages/TimetableView';
 import Inbox from './components/Inbox';
 import AccountBox from './components/AccountBox';
+import Hero from './components/Hero';
+import Backdrop from './components/Backdrop';
+import ClickSpark from './reactbits/ClickSpark';
+import ShinyText from './reactbits/ShinyText';
+import AnimatedContent from './reactbits/AnimatedContent';
+import { SPARKS } from './lib/theme';
 import { api, useAuth, type Role } from './auth';
 
 const Icon = ({ d }: { d: string }) => (
@@ -69,42 +75,76 @@ export function useOpenDisruptions(enabled: boolean) {
   return n;
 }
 
+const INLINE_LINKS = 4; // pages shown in the top bar; the menu lists all of them
+
 export default function App() {
   const user = useAuth((s) => s.user);
   const openDisruptions = useOpenDisruptions(user?.role === 'admin');
+  const loc = useLocation();
+  const [menu, setMenu] = useState(false);
+  useEffect(() => setMenu(false), [loc.pathname]);
   if (!user) return <Login />;
   const pages = PAGES.filter((p) => p.roles.includes(user.role));
   const home = user.role === 'admin' ? '/' : user.role === 'teacher' ? '/calendar' : '/timetable';
+  const inline = pages.slice(0, INLINE_LINKS);
+  const current = pages.find((p) => p.path === loc.pathname);
+  if (current && !inline.includes(current)) inline.push(current);
+  const badge = (path: string) =>
+    path === '/disruptions' && openDisruptions > 0 ? <span className="badge">{openDisruptions}</span> : null;
 
   return (
+    <ClickSpark sparkColor={SPARKS} sparkCount={9} sparkRadius={22} sparkSize={9} duration={450}>
     <div className="shell">
-      <aside className="side">
-        <div className="logo">Clockwork</div>
-        <div className="logo-sub">Multi-objective timetabling</div>
-        <nav className="nav">
-          {pages.map((p) => (
-            <NavLink key={p.path} to={p.path} end={p.path === '/'} aria-label={p.label}>
-              <Icon d={ICONS[p.icon]} />
-              <span>{p.label}</span>
-              {p.path === '/disruptions' && openDisruptions > 0 && <span className="badge">{openDisruptions}</span>}
+      <Backdrop />
+      <header className="topbar">
+        <NavLink to={home} className="logo" aria-label="Clockwork home">
+          <ShinyText text="Clockwork" color="#1e1316" shineColor="#d6404f" speed={3.2} delay={2} />
+        </NavLink>
+        <button className={`burger${menu ? ' open' : ''}`} aria-label="All pages" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+          <i />
+          <i />
+          <i />
+        </button>
+        <nav className="topnav">
+          {inline.map((p) => (
+            <NavLink key={p.path} to={p.path} end={p.path === '/'}>
+              {p.label}
+              {badge(p.path)}
             </NavLink>
           ))}
         </nav>
-        <div className="side-tools">
+        <div className="top-tools">
           <Inbox />
-        </div>
-        <div className="side-foot">
           <AccountBox />
         </div>
-      </aside>
+      </header>
+      {menu && (
+        <>
+          <div className="menu-scrim" onClick={() => setMenu(false)} />
+          <nav className="menu-drawer nav" aria-label="All pages">
+            {pages.map((p, n) => (
+              <NavLink key={p.path} to={p.path} end={p.path === '/'} aria-label={p.label}>
+                <em>{String(n + 1).padStart(2, '0')}</em>
+                <Icon d={ICONS[p.icon]} />
+                <span>{p.label}</span>
+                {badge(p.path)}
+              </NavLink>
+            ))}
+          </nav>
+        </>
+      )}
       <main className="main">
-        <Routes>
-          {pages.map((p) => (
-            <Route key={p.path} path={p.path} element={p.element} />
-          ))}
-          <Route path="*" element={<Navigate to={home} />} />
-        </Routes>
+        {loc.pathname === home && <Hero links={pages.filter((p) => p.path !== home).slice(0, 3).map((p) => ({ to: p.path, label: p.label }))} />}
+        <AnimatedContent key={loc.pathname} trigger="mount" distance={36} duration={0.6} ease="power3.out" initialOpacity={0}>
+          <Routes>
+            {pages.map((p) => (
+              <Route key={p.path} path={p.path} element={p.element} />
+            ))}
+            <Route path="*" element={<Navigate to={home} />} />
+          </Routes>
+        </AnimatedContent>
       </main>
     </div>
+    </ClickSpark>
   );
 }

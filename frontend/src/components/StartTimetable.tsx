@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import StatNumber from './StatNumber';
 import { Link } from 'react-router-dom';
 import { api } from '../auth';
 import { useStore } from '../store';
@@ -147,19 +148,19 @@ export default function StartTimetable() {
             <div className="section-title">This timetable today</div>
             <div className="mini-stats">
               <div>
-                <b>{m.student_gaps ?? sol.objectives.f1}</b>
+                <b><StatNumber value={m.student_gaps ?? sol.objectives.f1} /></b>
                 <span>idle periods for students per week</span>
               </div>
               <div>
-                <b>{m.room_utilization != null ? `${(m.room_utilization * 100).toFixed(0)}%` : `${((1 - sol.objectives.f2) * 100).toFixed(0)}%`}</b>
+                <b><StatNumber value={Math.round((m.room_utilization != null ? m.room_utilization : 1 - sol.objectives.f2) * 100)} suffix="%" /></b>
                 <span>of seats filled in the rooms used</span>
               </div>
               <div>
-                <b>{m.max_faculty_daily_load ?? '—'}</b>
+                <b><StatNumber value={m.max_faculty_daily_load} /></b>
                 <span>most periods any teacher has in one day</span>
               </div>
               <div>
-                <b>{sol.objectives.f3.toFixed(3)}</b>
+                <b><StatNumber value={sol.objectives.f3} decimals={3} /></b>
                 <span>workload imbalance between teachers (0 = equal)</span>
               </div>
             </div>

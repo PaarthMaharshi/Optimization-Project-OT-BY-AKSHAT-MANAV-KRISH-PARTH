@@ -5,6 +5,7 @@ import App from './App';
 import { GOOGLE_FONTS_URL } from './themes/fonts';
 import './styles/app.css';
 import './styles/poster.css';
+import './styles/landing.css';
 
 (document.getElementById('gfonts') as HTMLLinkElement).href = GOOGLE_FONTS_URL;
 

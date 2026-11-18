@@ -55,7 +55,7 @@ const ALGORITHMS: AlgoSpec[] = [
 ];
 
 const pickColor: Record<PickKind, string> = {
-  gaps: '#c8553d',
+  gaps: '#b01e35',
   rooms: '#d9a441',
   balance: '#7a8b6f',
   knee: '#5b6fb5',

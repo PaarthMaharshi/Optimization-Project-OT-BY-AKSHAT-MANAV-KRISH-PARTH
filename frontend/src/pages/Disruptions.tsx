@@ -280,8 +280,8 @@ function TradeoffChart({ r, selected, onPick }: { r: ReoptResult; selected: stri
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 420 }} role="img" aria-label="Changes against quality">
       <rect x={m.l} y={m.t} width={W - m.l - m.r} height={H - m.t - m.b} fill="#fbf7ef" rx="6" />
-      <line x1={sx(r.lowerBound)} x2={sx(r.lowerBound)} y1={m.t} y2={H - m.b} stroke="#c8553d" strokeDasharray="3 3" />
-      <text x={sx(r.lowerBound) + 3} y={m.t + 10} fontSize="9" fill="#c8553d">
+      <line x1={sx(r.lowerBound)} x2={sx(r.lowerBound)} y1={m.t} y2={H - m.b} stroke="#b01e35" strokeDasharray="3 3" />
+      <text x={sx(r.lowerBound) + 3} y={m.t + 10} fontSize="9" fill="#b01e35">
         lower bound
       </text>
       <path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ')} fill="none" stroke="var(--accent)" strokeWidth="2" />
