@@ -191,6 +191,20 @@ runs the 61-point end-to-end check ([latest results](docs/final_integration_chec
 
 See [web application guide](docs/web_application.md) and [accounts and calendar rules](docs/accounts-and-calendar.md).
 
+#### Deploying (Vercel + a Python host)
+
+Vercel hosts the website only. The optimiser keeps state (a SQLite database and background runs that last seconds
+to minutes), which Vercel's short-lived serverless functions cannot keep, so the Python server runs on a host with a
+long-running process and a persistent disk (Render, Railway, Fly.io, a VM, ...).
+
+1. **Backend.** Start command `python -m uvicorn api.server:app --host 0.0.0.0 --port $PORT` after
+   `pip install -r requirements.txt`. Set `CLOCKWORK_DB` to a file on the persistent disk and
+   `CLOCKWORK_CORS_ORIGINS` to the Vercel address(es), comma-separated, e.g. `https://clockwork.vercel.app`.
+   A fresh database creates `admin` / `admin`: sign in and change that password straight away.
+2. **Frontend on Vercel.** Import the repository and keep the root directory as the repository root; `vercel.json`
+   builds `frontend/` and `.vercelignore` keeps the Python code out of the upload. Add the environment variable
+   `VITE_API_URL` = the backend's https address (without `/api`), then redeploy, since it is read at build time.
+
 ## 9. Data
 
 Presets contain 40/150/400 events, 2/8/20 atomic cohorts, 5/12/25 rooms and 6/20/50 faculty. The five-day, eight-period grid blocks period index 4 for lunch. Class strengths cycle through 24/36/48/54 and room capacities through 30/45/60/90. Repeated theory sessions occur on distinct days; labs last two periods.

@@ -16,6 +16,7 @@ syllabus, requests, notifications, teacher constraints) is in api/campus/routes.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -47,9 +48,12 @@ app = FastAPI(title="Clockwork timetable optimiser", version="1.0.0")
 # Compress JSON responses: run results shrink about 10x, which is faster and keeps them far below the size at which
 # uvicorn on Windows can stall a response sent over a "Connection: close" request.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+# Local development is always allowed. For a hosted frontend (e.g. on Vercel) list its address(es) in
+# CLOCKWORK_CORS_ORIGINS, comma-separated: CLOCKWORK_CORS_ORIGINS=https://clockwork.vercel.app
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origins=[o.strip().rstrip("/") for o in os.environ.get("CLOCKWORK_CORS_ORIGINS", "").split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

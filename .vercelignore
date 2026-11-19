@@ -1,0 +1,28 @@
+# Vercel only hosts the website (frontend/). The Python optimiser keeps state (SQLite, background runs),
+# so it is hosted separately and the site reaches it through VITE_API_URL.
+# Keeping api/ out of the upload also stops Vercel turning api/*.py into serverless functions.
+api/
+src/
+tests/
+experiments/
+data/
+results/
+figures/
+formulation/
+literature/
+presentation/
+problem/
+report/
+docs/
+work/
+main.py
+pyproject.toml
+requirements*.txt
+run_demo.ps1
+.claude/
+frontend/.claude/
+frontend/node_modules/
+frontend/dist/
+frontend/tests/
+**/__pycache__/
+.pytest_cache/
