@@ -259,7 +259,7 @@ function ScatterPlot({
       </p>
       <details style={{ fontSize: 11, marginTop: 4 }}>
         <summary style={{ cursor: 'pointer', color: '#6b655c' }}>Exact definitions</summary>
-        <div style={{ padding: '6px 10px', background: '#f5efe4', borderRadius: 6, marginTop: 4, lineHeight: 1.4 }}>
+        <div style={{ padding: '6px 10px', background: 'var(--paper-2)', borderRadius: 6, marginTop: 4, lineHeight: 1.4 }}>
           <div>
             <b>{AXES[xk].short}:</b> {AXES[xk].name}. {AXES[xk].desc}
           </div>
@@ -433,7 +433,7 @@ export default function ParetoExplorer() {
       <HowToRead front={front} picks={picks} hasGreedy={fronts.greedy.length > 0} />
 
       {/* Algorithm Legend & Filter Toggle Bar */}
-      <div className="card" style={{ padding: '12px 16px', marginBottom: 18, background: '#faf6ee', border: '1px solid #e3d9c6' }}>
+      <div className="card" style={{ padding: '12px 16px', marginBottom: 18, background: 'var(--warm)', border: '1px solid var(--line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>Toggle Algorithms:</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>

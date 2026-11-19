@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ThemeToggle from '../components/ThemeToggle';
 import { post, useAuth, type User } from '../auth';
 import Hero, { useViewportWidth } from '../components/Hero';
 import FanToGrid from '../components/landing/FanToGrid';
@@ -10,9 +11,10 @@ import Backdrop from '../components/Backdrop';
 import ClickSpark from '../reactbits/ClickSpark';
 import ShinyText from '../reactbits/ShinyText';
 import Magnet from '../reactbits/Magnet';
-import { SPARKS } from '../lib/theme';
+import { useSiteColors } from '../lib/siteTheme';
 
 export default function Login() {
+  const site = useSiteColors();
   const setSession = useAuth((s) => s.setSession);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -46,14 +48,15 @@ export default function Login() {
   };
 
   return (
-    <ClickSpark sparkColor={SPARKS} sparkCount={9} sparkRadius={22} sparkSize={9} duration={450}>
+    <ClickSpark sparkColor={site.sparks} sparkCount={9} sparkRadius={22} sparkSize={9} duration={450}>
     <div className="shell">
       <Backdrop />
       <header className="topbar">
         <span className="logo">
-          <ShinyText text="Clockwork" color="#1e1316" shineColor="#d6404f" speed={3.2} delay={2} />
+          <ShinyText text="Clockwork" color={site.ink} shineColor={site.light} speed={3.2} delay={2} />
         </span>
         <span className="topbar-note">Sign in</span>
+        <ThemeToggle />
       </header>
       <main className="main">
         <Hero art={<StickerPlayground width={vw < 820 ? Math.min(340, vw - 40) : Math.round(Math.min(380, vw * 0.27))} />}>

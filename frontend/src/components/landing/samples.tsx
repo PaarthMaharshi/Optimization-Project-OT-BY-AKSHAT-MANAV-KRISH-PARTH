@@ -37,7 +37,7 @@ export const SAMPLES: SampleSpec[] = [
     decos: [st('a1', 'bow', 84, 6, 92, 12), st('a2', 'star', 8, 90, 70, -14, 'c2'), word('a3', 'QUIZ', 76, 92, 30, -8)],
   },
   {
-    key: 'peach', palette: 'peach', font: 'notebook', design: 'planner', bg: 'lines',
+    key: 'berry', palette: 'berry', font: 'notebook', design: 'planner', bg: 'lines',
     title: 'My Teaching Week', subtitle: 'Prof. Kulal · OT', view: { kind: 'faculty', entityId: 'f1' },
     decos: [st('b1', 'coffee', 86, 7, 86, 10, 'c2'), note('b2', 'Office hours Thu 3pm', 70, 88, -6), st('b3', 'flower', 10, 92, 74, -10)],
   },
@@ -47,17 +47,17 @@ export const SAMPLES: SampleSpec[] = [
     decos: [st('c1', 'leaf', 88, 6, 80, 18, 'c3'), word('c2', 'EXAM', 14, 93, 30, 6, 'c1'), st('c3', 'sparkle', 82, 90, 66, 0, 'c2')],
   },
   {
-    key: 'lilac', palette: 'lilac', font: 'bubbly', design: 'glass', bg: 'gradient',
+    key: 'olive', palette: 'olive', font: 'bubbly', design: 'glass', bg: 'gradient',
     title: 'Room Bookings', subtitle: 'Lecture Hall 201', view: { kind: 'room', entityId: 'r3' },
     decos: [st('d1', 'cloud', 84, 6, 96, 0, 'c2'), st('d2', 'heart', 10, 91, 64, -16), word('d3', 'YAY!', 80, 93, 28, 10, 'c3')],
   },
   {
-    key: 'sunset', palette: 'sunset', font: 'editorial', design: 'minimal', bg: 'grid',
+    key: 'ocean', palette: 'ocean', font: 'editorial', design: 'minimal', bg: 'grid',
     title: 'Lecture Plan', subtitle: 'Prof. Sase · Parallel Computing', view: { kind: 'faculty', entityId: 'f2' },
     decos: [st('e1', 'sun', 86, 6, 90, 0, 'c2'), st('e2', 'pencil', 12, 92, 80, -24, 'c1'), note('e3', 'Lab moved to Fri', 72, 89, 5, '#FFD1DC')],
   },
   {
-    key: 'midnight', palette: 'midnight', font: 'tech', design: 'pill', bg: 'solid',
+    key: 'sunset', palette: 'sunset', font: 'tech', design: 'pill', bg: 'solid',
     title: 'CR-101 Week', subtitle: 'Classroom 101', view: { kind: 'room', entityId: 'r1' },
     decos: [st('f1', 'star', 86, 6, 76, 14), st('f2', 'cat', 12, 91, 86, -6, 'c2'), word('f3', 'BREAK', 78, 93, 26, -6, 'c3')],
   },

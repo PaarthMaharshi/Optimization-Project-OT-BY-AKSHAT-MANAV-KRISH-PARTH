@@ -2,12 +2,10 @@ import { useLayoutEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import ScrollReveal from '../../reactbits/ScrollReveal';
-import { iconStickers } from '../../themes/stickers';
 import { SAMPLES, SampleTimetable } from './samples';
+import { siteThemeName, useSiteTheme } from '../../lib/siteTheme';
 
 gsap.registerPlugin(ScrollTrigger);
-
-const ICONS = ['book', 'pencil', 'coffee', 'star', 'sun', 'leaf', 'sparkle', 'cloud'];
 
 /**
  * Pinned section: the posters start in a loose diagonal fan and, as you scroll, settle into a tidy grid.
@@ -17,6 +15,7 @@ const ICONS = ['book', 'pencil', 'coffee', 'star', 'sun', 'leaf', 'sparkle', 'cl
 export default function FanToGrid({ cardWidth }: { cardWidth: number }) {
   const wrap = useRef<HTMLElement>(null);
   const gallery = useRef<HTMLDivElement>(null);
+  const { id: themeId, setTheme } = useSiteTheme();
 
   useLayoutEffect(() => {
     const el = gallery.current;
@@ -62,18 +61,20 @@ export default function FanToGrid({ cardWidth }: { cardWidth: number }) {
             Every week of classes tells a story. Clockwork keeps it free of clashes, keeps students' idle periods short,
             fills rooms sensibly and spreads teaching fairly, then lets you decorate it.
           </ScrollReveal>
-          <div className="icon-cluster" aria-hidden="true">
-            {ICONS.map((k, i) => (
-              <span key={k} className="icon-dot" style={{ left: (i * 53) % 190, top: (i * 37) % 80 }}>
-                {iconStickers[k]?.draw('transparent', '#1e1316')}
-              </span>
-            ))}
-          </div>
         </div>
         {SAMPLES.map((s, i) => (
-          <div key={s.key} className="fg-item" style={{ ['--i' as string]: i }}>
+          <button
+            key={s.key}
+            type="button"
+            className={`fg-item${themeId === s.palette ? ' active' : ''}`}
+            style={{ ['--i' as string]: i }}
+            onClick={() => setTheme(s.palette)}
+            aria-pressed={themeId === s.palette}
+            aria-label={`Use the ${siteThemeName(s.palette)} colours for the site`}
+            title={`Use ${siteThemeName(s.palette)} colours`}
+          >
             <SampleTimetable spec={s} width={cardWidth} />
-          </div>
+          </button>
         ))}
       </div>
     </section>

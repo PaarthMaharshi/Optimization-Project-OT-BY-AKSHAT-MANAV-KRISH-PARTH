@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import BounceCards from '../reactbits/BounceCards';
 import BlurText from '../reactbits/BlurText';
 import { SAMPLES, SAMPLE_RATIO, SampleTimetable } from './landing/samples';
+import { siteThemeName, useSiteTheme } from '../lib/siteTheme';
 
 /** Window width, updated on resize. */
 export function useViewportWidth() {
@@ -22,6 +23,7 @@ export function useViewportWidth() {
  */
 export default function Hero({ links = [], children, art }: { links?: { to: string; label: string }[]; children?: ReactNode; art?: ReactNode }) {
   const vw = useViewportWidth();
+  const setTheme = useSiteTheme((s) => s.setTheme);
   const narrow = vw < 820;
   const stacked = !art; // fan of samples centred under the text (home); the login page keeps text beside its art
   const card = narrow ? Math.max(92, Math.min(120, vw / 3.6)) : Math.max(150, Math.min(210, vw / 7));
@@ -65,7 +67,8 @@ export default function Hero({ links = [], children, art }: { links?: { to: stri
         <BounceCards
           className="hero2-fan"
           items={SAMPLES.map((s) => <SampleTimetable key={s.key} spec={s} width={inner} />)}
-          labels={SAMPLES.map((s) => `Sample timetable: ${s.title}`)}
+          labels={SAMPLES.map((s) => `Sample timetable: ${s.title}. Use the ${siteThemeName(s.palette)} colours for the site`)}
+          onCardClick={(i) => setTheme(SAMPLES[i].palette)}
           containerWidth={boxW}
           containerHeight={boxH}
           cardSize={card}

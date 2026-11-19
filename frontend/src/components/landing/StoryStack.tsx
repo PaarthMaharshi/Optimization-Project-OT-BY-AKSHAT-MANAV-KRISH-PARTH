@@ -19,7 +19,7 @@ export default function StoryStack({ posterWidth }: { posterWidth: number }) {
       </div>
       <ScrollStack useWindowScroll itemDistance={60} itemStackDistance={26} stackPosition="18%" baseScale={0.9} itemScale={0.03} blurAmount={0.6} className="story-stack">
         {STORIES.map((s) => (
-          <ScrollStackItem key={s.title} itemClassName="story-card" style={{ background: s.tone }}>
+          <ScrollStackItem key={s.title} itemClassName="story-card" style={{ ['--tone' as string]: s.tone }}>
             <div className="story-text">
               <span className="story-kicker">{s.kicker}</span>
               <h3>{s.title}</h3>

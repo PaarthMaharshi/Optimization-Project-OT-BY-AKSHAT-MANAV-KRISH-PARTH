@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ThemeToggle from './components/ThemeToggle';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ParetoExplorer from './pages/ParetoExplorer';
@@ -18,7 +19,7 @@ import Backdrop from './components/Backdrop';
 import ClickSpark from './reactbits/ClickSpark';
 import ShinyText from './reactbits/ShinyText';
 import AnimatedContent from './reactbits/AnimatedContent';
-import { SPARKS } from './lib/theme';
+import { useSiteColors } from './lib/siteTheme';
 import { api, useAuth, type Role } from './auth';
 
 const Icon = ({ d }: { d: string }) => (
@@ -78,6 +79,7 @@ export function useOpenDisruptions(enabled: boolean) {
 const INLINE_LINKS = 4; // pages shown in the top bar; the menu lists all of them
 
 export default function App() {
+  const site = useSiteColors();
   const user = useAuth((s) => s.user);
   const openDisruptions = useOpenDisruptions(user?.role === 'admin');
   const loc = useLocation();
@@ -93,12 +95,12 @@ export default function App() {
     path === '/disruptions' && openDisruptions > 0 ? <span className="badge">{openDisruptions}</span> : null;
 
   return (
-    <ClickSpark sparkColor={SPARKS} sparkCount={9} sparkRadius={22} sparkSize={9} duration={450}>
+    <ClickSpark sparkColor={site.sparks} sparkCount={9} sparkRadius={22} sparkSize={9} duration={450}>
     <div className="shell">
       <Backdrop />
       <header className="topbar">
         <NavLink to={home} className="logo" aria-label="Clockwork home">
-          <ShinyText text="Clockwork" color="#1e1316" shineColor="#d6404f" speed={3.2} delay={2} />
+          <ShinyText text="Clockwork" color={site.ink} shineColor={site.light} speed={3.2} delay={2} />
         </NavLink>
         <button className={`burger${menu ? ' open' : ''}`} aria-label="All pages" aria-expanded={menu} onClick={() => setMenu(!menu)}>
           <i />
@@ -114,6 +116,7 @@ export default function App() {
           ))}
         </nav>
         <div className="top-tools">
+          <ThemeToggle />
           <Inbox />
           <AccountBox />
         </div>

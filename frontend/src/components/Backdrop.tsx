@@ -34,7 +34,7 @@ export default function Backdrop() {
           return (
             <svg key={i} className="bd-wave" viewBox={`0 0 ${w} 100`} preserveAspectRatio="none" style={{ width: `${w}vw`, zIndex: i }}>
               <g className="bd-wave-flow" style={{ ['--p' as string]: l.period, animationDuration: `${l.dur}s` }}>
-                <path d={wavePath(l.base, l.amp, l.period, l.phase)} fill={l.color} />
+                <path d={wavePath(l.base, l.amp, l.period, l.phase)} style={{ fill: `var(--wave-${i}, ${l.color})` }} />
               </g>
             </svg>
           );

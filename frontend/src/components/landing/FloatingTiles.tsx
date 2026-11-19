@@ -47,9 +47,9 @@ export default function FloatingTiles() {
   }, []);
 
   return (
-    <section className="ft-section" ref={root}>
+    <section className="ft-section full-bleed" ref={root}>
       {TILES.map((t, i) => (
-        <span key={i} className={`ft-tile ${t.kind}`} data-d={t.d} style={{ left: `${t.x}%`, top: `${t.y}%`, ['--c' as string]: t.c, ['--s' as string]: 0.75 + t.d * 0.3 }}>
+        <span key={i} className={`ft-tile ${t.kind}`} data-d={t.d} style={{ left: `calc((100% - 62px * var(--s)) * ${t.x / 100})`, top: `${t.y}%`, ['--c' as string]: t.c, ['--s' as string]: 0.75 + t.d * 0.3 }}>
           {t.kind === 'code' ? t.v : iconStickers[t.v]?.draw('#ffffff', '#ffffff')}
         </span>
       ))}
